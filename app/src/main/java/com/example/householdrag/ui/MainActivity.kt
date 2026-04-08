@@ -1,4 +1,4 @@
-package com.example.householdrag
+package com.example.householdrag.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,83 +18,27 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.householdrag.api.ApiClient
+import com.example.householdrag.api.AskRequest
+import com.example.householdrag.api.Expense
+import com.example.householdrag.api.ExpenseRequest
 import kotlinx.coroutines.launch
-import retrofit2.Response
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.*
-
-data class Expense(
-    val id: String,
-    val date: String,
-    val category: String,
-    val amount: Int,
-    val payment_method: String,
-    val place: String,
-    val memo: String
-)
-
-data class ExpenseRequest(
-    val date: String,
-    val category: String,
-    val amount: Int,
-    val payment_method: String,
-    val place: String,
-    val memo: String
-)
-
-data class AskRequest(
-    val question: String
-)
-
-data class AskResponse(
-    val answer: String,
-    val references: List<String>
-)
-
-interface ApiService {
-    @GET("expenses")
-    suspend fun getExpenses(): List<Expense>
-
-    @POST("expenses")
-    suspend fun createExpense(@Body request: ExpenseRequest): Expense
-
-    @PUT("expenses/{id}")
-    suspend fun updateExpense(
-        @Path("id") id: String,
-        @Body request: ExpenseRequest
-    ): Expense
-
-    @DELETE("expenses/{id}")
-    suspend fun deleteExpense(@Path("id") id: String): Map<String, String>
-
-    @POST("ask")
-    suspend fun ask(@Body request: AskRequest): AskResponse
-}
-
-object ApiClient {
-    // 여기 URL을 너 서버 주소로 바꿔야 함
-    private const val BASE_URL = "https://household-rag-server.onrender.com/"
-
-    val api: ApiService by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(ApiService::class.java)
-    }
-}
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -109,7 +53,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
+@androidx.compose.runtime.Composable
 fun HouseholdApp() {
     val scope = rememberCoroutineScope()
 
@@ -140,10 +84,12 @@ fun HouseholdApp() {
 
     suspend fun refreshExpenses() {
         try {
-            expenses = ApiClient.api.getExpenses()
-            statusMessage = "가계부 목록 불러오기 성공"
+            val result = ApiClient.api.getExpenses()
+            expenses = result
+            statusMessage = "가계부 목록 불러오기 성공: ${result.size}개"
         } catch (e: Exception) {
-            statusMessage = "목록 불러오기 실패: ${e.message}"
+            statusMessage = "목록 불러오기 실패: ${e.javaClass.simpleName} / ${e.message}"
+            e.printStackTrace()
         }
     }
 
@@ -243,13 +189,16 @@ fun HouseholdApp() {
                                                 editId?.let {
                                                     ApiClient.api.updateExpense(it, request)
                                                     statusMessage = "수정 성공"
+                                                } ?: run {
+                                                    statusMessage = "수정 실패: editId가 null"
                                                 }
                                             }
 
                                             clearForm()
                                             refreshExpenses()
                                         } catch (e: Exception) {
-                                            statusMessage = "저장/수정 실패: ${e.message}"
+                                            statusMessage = "저장/수정 실패: ${e.javaClass.simpleName} / ${e.message}"
+                                            e.printStackTrace()
                                         }
                                     }
                                 }
@@ -291,7 +240,7 @@ fun HouseholdApp() {
                                     paymentMethod = expense.payment_method
                                     place = expense.place
                                     memo = expense.memo
-                                    statusMessage = "수정할 항목을 불러왔습니다."
+                                    statusMessage = "수정할 항목을 불러왔습니다. ID: ${expense.id}"
                                 }
                             ) {
                                 Text("수정")
@@ -307,7 +256,8 @@ fun HouseholdApp() {
                                             statusMessage = "삭제 성공"
                                             refreshExpenses()
                                         } catch (e: Exception) {
-                                            statusMessage = "삭제 실패: ${e.message}"
+                                            statusMessage = "삭제 실패: ${e.javaClass.simpleName} / ${e.message}"
+                                            e.printStackTrace()
                                         }
                                     }
                                 }
@@ -344,12 +294,13 @@ fun HouseholdApp() {
                                 scope.launch {
                                     try {
                                         val response = ApiClient.api.ask(AskRequest(question))
-                                        answer = response.answer +
-                                                "\n\n참고: " + response.references.joinToString(", ")
+                                        answer = response.answer + "\n\n참고: " +
+                                                response.references.joinToString(", ")
                                         statusMessage = "질문 처리 성공"
                                     } catch (e: Exception) {
                                         answer = ""
-                                        statusMessage = "질문 처리 실패: ${e.message}"
+                                        statusMessage = "질문 처리 실패: ${e.javaClass.simpleName} / ${e.message}"
+                                        e.printStackTrace()
                                     }
                                 }
                             }
