@@ -1,28 +1,5 @@
 package com.example.householdrag.api
 
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Path
-
-interface ApiService {
-    @GET("expenses")
-    suspend fun getExpenses(): List<Expense>
-
-    @POST("expenses")
-    suspend fun createExpense(@Body request: ExpenseRequest): Expense
-
-    @PUT("expenses/{id}")
-    suspend fun updateExpense(
-        @Path("id") id: String,
-        @Body request: ExpenseRequest
-    ): Expense
-
-    @DELETE("expenses/{id}")
-    suspend fun deleteExpense(@Path("id") id: String): Map<String, String>
-
-    @POST("ask")
-    suspend fun ask(@Body request: AskRequest): AskResponse
-}
+// 앱이 참조하는 통합 API 타입.
+// 기능별 인터페이스를 합쳐 호출 진입점을 단순화한다.
+interface ApiService : ExpenseApiService, QuestionApiService, AuthApiService
