@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.householdrag"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.householdrag"
@@ -34,6 +34,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.androidx.ui.graphics)
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
