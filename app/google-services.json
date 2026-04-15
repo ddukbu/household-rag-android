@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "219177825254",
+    "firebase_url": "https://house-hold-rag-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "house-hold-rag",
+    "storage_bucket": "house-hold-rag.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:219177825254:android:35064ee9736e1eb497dc27",
+        "android_client_info": {
+          "package_name": "com.example.householdrag"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPjbUHMBSwu76pmU0U9wFnTXCQX2oYmaE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

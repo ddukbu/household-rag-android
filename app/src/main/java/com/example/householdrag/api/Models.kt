@@ -25,5 +25,12 @@ data class AskRequest(
 
 data class AskResponse(
     val answer: String,
-    val references: List<String>
+    val references: List<String>,
+    val retrieval_seconds: Float,
+    val generation_seconds: Float,
+    val total_seconds: Float
+)
+
+data class ProfileInitRequest(
+    val email: String
 )

@@ -8,6 +8,9 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface ApiService {
+    @POST("profile/init")
+    suspend fun initProfile(@Body request: ProfileInitRequest): Map<String, String>
+
     @GET("expenses")
     suspend fun getExpenses(): List<Expense>
 
