@@ -11,3 +11,4 @@ typealias LoginRequest = com.example.householdrag.model.LoginRequest
 typealias LoginResponse = com.example.householdrag.model.LoginResponse
 typealias SignupRequest = com.example.householdrag.model.SignupRequest
 typealias SignupResponse = com.example.householdrag.model.SignupResponse
+typealias ProfileInitRequest = com.example.householdrag.model.ProfileInitRequest

@@ -2,6 +2,7 @@ package com.example.householdrag.api
 
 import com.example.householdrag.model.LoginRequest
 import com.example.householdrag.model.LoginResponse
+import com.example.householdrag.model.ProfileInitRequest
 import com.example.householdrag.model.SignupRequest
 import com.example.householdrag.model.SignupResponse
 import retrofit2.http.Body
@@ -17,4 +18,8 @@ interface AuthApiService {
     // 새 계정을 생성한다.
     @POST("auth/signup")
     suspend fun signup(@Body request: SignupRequest): SignupResponse
+
+    // Firebase 회원가입 직후 사용자 프로필 초기화를 수행한다.
+    @POST("profile/init")
+    suspend fun initProfile(@Body request: ProfileInitRequest): Map<String, String>
 }
