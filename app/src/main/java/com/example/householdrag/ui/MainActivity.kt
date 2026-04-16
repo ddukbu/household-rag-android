@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.*
+import com.example.householdrag.api.ApiClient
 import kotlinx.coroutines.launch
 
 // 화면의 종류 정의
@@ -28,6 +29,7 @@ enum class Screen { LIST, ADD, ASK }
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ApiClient.init(applicationContext)
         setContent { MaterialTheme { HouseholdApp() } }
     }
 }
