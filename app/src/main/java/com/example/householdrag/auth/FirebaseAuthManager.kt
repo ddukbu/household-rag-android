@@ -2,6 +2,8 @@ package com.example.householdrag.auth
 
 import com.google.firebase.auth.FirebaseAuth
 
+// Firebase Authentication 래퍼.
+// 이메일/비밀번호 인증과 ID 토큰 조회를 단순 콜백 형태로 제공한다.
 object FirebaseAuthManager {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 
@@ -35,9 +37,9 @@ object FirebaseAuthManager {
             }
     }
 
-    fun getIdToken(onResult: (String?) -> Unit) {
+    fun getIdToken(forceRefresh: Boolean = true, onResult: (String?) -> Unit) {
         val user = auth.currentUser
-        user?.getIdToken(true)
+        user?.getIdToken(forceRefresh)
             ?.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     onResult(task.result?.token)
@@ -47,9 +49,9 @@ object FirebaseAuthManager {
             } ?: onResult(null)
     }
 
-    fun getCurrentUserEmail(): String? {
-        return auth.currentUser?.email
-    }
+    fun getCurrentUserUid(): String? = auth.currentUser?.uid
+
+    fun getCurrentUserEmail(): String? = auth.currentUser?.email
 
     fun logout() {
         auth.signOut()
