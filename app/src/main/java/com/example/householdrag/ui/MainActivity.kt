@@ -12,11 +12,19 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.*
 import com.example.householdrag.api.ApiClient
+import com.example.householdrag.auth.AuthRepository
+import com.example.householdrag.auth.AuthSessionEvents
+import com.example.householdrag.auth.AuthTokenStore
+import com.example.householdrag.auth.FirebaseAuthManager
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 // 화면의 종류를 정의 (탭 메뉴)
@@ -33,7 +41,17 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HouseholdApp() {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    var isAuthenticated by remember { mutableStateOf(AuthTokenStore.hasAccessToken(context)) }
+
+    var isLoginMode by remember { mutableStateOf(true) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var authLoading by remember { mutableStateOf(false) }
+    var authMessage by remember { mutableStateOf<String?>(null) }
 
     // --- 내비게이션 상태 변수 ---
     var currentScreen by remember { mutableStateOf(Screen.LIST) }
@@ -65,11 +83,114 @@ fun HouseholdApp() {
         } catch (e: Exception) { statusMessage = "불러오기 실패" }
     }
 
-    LaunchedEffect(Unit) { refreshExpenses() }
+    LaunchedEffect(isAuthenticated) {
+        if (isAuthenticated) {
+            refreshExpenses()
+        } else {
+            expenses = emptyList()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        AuthSessionEvents.sessionExpired.collectLatest {
+            AuthTokenStore.clear(context)
+            FirebaseAuthManager.logout()
+            isAuthenticated = false
+            authMessage = "세션이 만료되었습니다. 다시 로그인해 주세요."
+            statusMessage = "세션 만료"
+        }
+    }
+
+    fun resetAuthForm() {
+        email = ""
+        password = ""
+        confirmPassword = ""
+    }
+
+    fun handleAuthAction() {
+        if (email.isBlank() || password.isBlank()) {
+            authMessage = "이메일과 비밀번호를 입력해 주세요."
+            return
+        }
+        if (!isLoginMode && password != confirmPassword) {
+            authMessage = "비밀번호 확인이 일치하지 않습니다."
+            return
+        }
+
+        authLoading = true
+        authMessage = null
+
+        if (isLoginMode) {
+            AuthRepository.loginAndSetFirebaseIdToken(context, email.trim(), password) { success, error ->
+                scope.launch {
+                    authLoading = false
+                    if (success) {
+                        isAuthenticated = true
+                        authMessage = null
+                        resetAuthForm()
+                    } else {
+                        authMessage = error ?: "로그인에 실패했습니다."
+                    }
+                }
+            }
+        } else {
+            AuthRepository.signUpAndInitProfile(context, email.trim(), password) { success, error ->
+                scope.launch {
+                    authLoading = false
+                    if (success) {
+                        isAuthenticated = true
+                        authMessage = error
+                        resetAuthForm()
+                    } else {
+                        authMessage = error ?: "회원가입에 실패했습니다."
+                    }
+                }
+            }
+        }
+    }
+
+    if (!isAuthenticated) {
+        AuthForm(
+            isLoginMode = isLoginMode,
+            email = email,
+            password = password,
+            confirmPassword = confirmPassword,
+            loading = authLoading,
+            message = authMessage,
+            onEmailChange = { email = it },
+            onPasswordChange = { password = it },
+            onConfirmPasswordChange = { confirmPassword = it },
+            onToggleMode = {
+                isLoginMode = !isLoginMode
+                authMessage = null
+            },
+            onSubmit = { handleAuthAction() }
+        )
+        return
+    }
 
     // --- UI 조립 ---
     Scaffold(
-        topBar = { TopAppBar(title = { Text("HouseHold RAG") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("HouseHold RAG") },
+                actions = {
+                    TextButton(
+                        onClick = {
+                            AuthTokenStore.clear(context)
+                            FirebaseAuthManager.logout()
+                            isAuthenticated = false
+                            currentScreen = Screen.LIST
+                            clearForm()
+                            answer = ""
+                            statusMessage = "로그아웃됨"
+                        }
+                    ) {
+                        Text("로그아웃")
+                    }
+                }
+            )
+        },
         bottomBar = {
             // 하단 탭 메뉴 바
             NavigationBar {
@@ -158,6 +279,92 @@ fun HouseholdApp() {
                             }
                         }
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AuthForm(
+    isLoginMode: Boolean,
+    email: String,
+    password: String,
+    confirmPassword: String,
+    loading: Boolean,
+    message: String?,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onConfirmPasswordChange: (String) -> Unit,
+    onToggleMode: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = if (isLoginMode) "로그인" else "회원가입",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    label = { Text("이메일") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("비밀번호") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (!isLoginMode) {
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = onConfirmPasswordChange,
+                        label = { Text("비밀번호 확인") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                if (!message.isNullOrBlank()) {
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                Button(
+                    onClick = onSubmit,
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (loading) "처리 중..." else if (isLoginMode) "로그인" else "회원가입")
+                }
+
+                TextButton(
+                    onClick = onToggleMode,
+                    enabled = !loading,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(if (isLoginMode) "계정이 없나요? 회원가입" else "이미 계정이 있나요? 로그인")
                 }
             }
         }

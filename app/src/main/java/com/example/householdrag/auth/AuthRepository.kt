@@ -6,6 +6,8 @@ import com.example.householdrag.model.ProfileInitRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 // Firebase 인증 결과를 현재 앱의 토큰 저장소/Auth API 흐름과 연결하는 어댑터.
 object AuthRepository {
@@ -40,7 +42,12 @@ object AuthRepository {
                         ApiClient.api.initProfile(ProfileInitRequest(email))
                         onResult(true, null)
                     } catch (e: Exception) {
-                        onResult(false, e.message)
+                        val warning = when (e) {
+                            is SocketTimeoutException -> "회원가입은 완료됐지만 서버 응답이 지연되어 프로필 초기화가 늦어지고 있습니다."
+                            is UnknownHostException -> "회원가입은 완료됐지만 네트워크 문제로 프로필 초기화에 실패했습니다."
+                            else -> "회원가입은 완료됐지만 프로필 초기화에 실패했습니다."
+                        }
+                        onResult(true, warning)
                     }
                 }
             }
