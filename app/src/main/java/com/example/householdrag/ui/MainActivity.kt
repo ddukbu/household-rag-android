@@ -21,10 +21,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.*
 import com.example.householdrag.api.ApiClient
+import com.example.householdrag.auth.AuthRepository
 import kotlinx.coroutines.launch
 
 // 화면의 종류 정의
-enum class Screen { LIST, ADD, ASK }
+enum class Screen { LOGIN, SIGNUP, LIST, ADD, ASK }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,7 +41,7 @@ fun HouseholdApp() {
     val scope = rememberCoroutineScope()
 
     // --- 내비게이션 및 로딩 상태 변수 ---
-    var currentScreen by remember { mutableStateOf(Screen.LIST) }
+    var currentScreen by remember { mutableStateOf(Screen.LOGIN) }
     var isLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---
@@ -83,47 +84,47 @@ fun HouseholdApp() {
     // --- UI 조립 ---
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("HouseHold RAG") },
-                // 상단바 우측에 새로고침 아이콘 추가
-                actions = {
-                    IconButton(onClick = { scope.launch { refreshExpenses() } }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "새로고침")
+            if (currentScreen != Screen.LOGIN && currentScreen != Screen.SIGNUP) {
+                TopAppBar(
+                    title = { Text("HouseHold RAG") },
+                    actions = {
+                        IconButton(onClick = { scope.launch { refreshExpenses() } }) {
+                            Icon(Icons.Default.Refresh, contentDescription = "새로고침")
+                        }
                     }
-                }
-            )
+                )
+            }
         },
         // 화면 우측 하단에 떠 있는 '추가' 버튼
         floatingActionButton = {
-            if (currentScreen != Screen.ADD) {
+            if (currentScreen == Screen.LIST) {
                 FloatingActionButton(
                     onClick = {
-                        clearForm() // 새 데이터를 쓰기 위해 폼 초기화
+                        clearForm();
                         currentScreen = Screen.ADD
                     },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 ) {
-                    // 글씨 없이 플러스 아이콘만 넣기
                     Icon(Icons.Default.Add, contentDescription = "추가")
                 }
             }
         },
         bottomBar = {
-            // 하단 바는 '목록'과 '분석' 2개 탭으로 구성
-            NavigationBar {
-                NavigationBarItem(
-                    selected = currentScreen == Screen.LIST,
-                    onClick = { currentScreen = Screen.LIST },
-                    label = { Text("목록") },
-                    icon = { Icon(Icons.Default.List, contentDescription = null) }
-                )
-                NavigationBarItem(
-                    selected = currentScreen == Screen.ASK,
-                    onClick = { currentScreen = Screen.ASK },
-                    label = { Text("분석") },
-                    icon = { Icon(Icons.Default.Search, contentDescription = null) }
-                )
+            if (currentScreen != Screen.LOGIN && currentScreen != Screen.SIGNUP) {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = currentScreen == Screen.LIST,
+                        onClick = { currentScreen = Screen.LIST },
+                        label = { Text("목록") },
+                        icon = { Icon(Icons.Default.List, contentDescription = null) }
+                    )
+                    NavigationBarItem(
+                        selected = currentScreen == Screen.ASK,
+                        onClick = { currentScreen = Screen.ASK },
+                        label = { Text("분석") },
+                        icon = { Icon(Icons.Default.Search, contentDescription = null) }
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -136,9 +137,42 @@ fun HouseholdApp() {
             Box(
                 modifier = Modifier
                     //.padding(innerPadding)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 10.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 16.dp)
             ) {
                 when (currentScreen) {
+                    Screen.LOGIN -> {
+                        LoginScreen(
+                            onLoginClick = { email, pw ->
+                                AuthRepository.loginAndSetToken(email, pw) { success, error ->
+                                    if (success) {
+                                        // 메인 화면 이동
+                                    } else {
+                                        // 에러 표시
+                                    }
+                                }
+
+                                currentScreen = Screen.LIST
+                            },
+                            onSignUpClick = { currentScreen = Screen.SIGNUP }
+                        )
+                    }
+
+                    Screen.SIGNUP -> {
+                        SignUpScreen(
+                            onSignUpClick = { email, pw ->
+                                AuthRepository.signUpAndInitProfile(email, pw) { success, error ->
+                                    if (success) {
+                                        // 메인 화면 이동
+                                    } else {
+                                        // 에러 표시
+                                    }
+                                }
+                                currentScreen = Screen.LOGIN    // 회원가입 후 로그인 화면으로 이동
+                            },
+                            onBackToLogin = { currentScreen = Screen.LOGIN }
+                        )
+                    }
+
                     Screen.LIST -> {
                         // [목록 탭]
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
