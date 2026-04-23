@@ -4,8 +4,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
-import com.google.firebase.auth.FirebaseNetworkException
-import com.google.firebase.auth.FirebaseTooManyRequestsException
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.FirebaseTooManyRequestsException
 
 // Firebase Authentication 래퍼.
 // 이메일/비밀번호 인증과 ID 토큰 조회를 단순 콜백 형태로 제공한다.
