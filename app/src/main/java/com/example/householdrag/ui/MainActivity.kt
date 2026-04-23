@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.*
 import com.example.householdrag.api.ApiClient
+import com.example.householdrag.auth.AuthRepository
 import kotlinx.coroutines.launch
 
 // 화면의 종류 정의
@@ -142,7 +143,14 @@ fun HouseholdApp() {
                     Screen.LOGIN -> {
                         LoginScreen(
                             onLoginClick = { email, pw ->
-                                // TODO: 실제 로그인 API 호출 로직
+                                AuthRepository.loginAndSetToken(email, pw) { success, error ->
+                                    if (success) {
+                                        // 메인 화면 이동
+                                    } else {
+                                        // 에러 표시
+                                    }
+                                }
+
                                 currentScreen = Screen.LIST
                             },
                             onSignUpClick = { currentScreen = Screen.SIGNUP }
@@ -152,7 +160,13 @@ fun HouseholdApp() {
                     Screen.SIGNUP -> {
                         SignUpScreen(
                             onSignUpClick = { email, pw ->
-                                // TODO: 회원가입 API 호출
+                                AuthRepository.signUpAndInitProfile(email, pw) { success, error ->
+                                    if (success) {
+                                        // 메인 화면 이동
+                                    } else {
+                                        // 에러 표시
+                                    }
+                                }
                                 currentScreen = Screen.LOGIN    // 회원가입 후 로그인 화면으로 이동
                             },
                             onBackToLogin = { currentScreen = Screen.LOGIN }
