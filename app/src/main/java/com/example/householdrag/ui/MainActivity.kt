@@ -1,6 +1,7 @@
 package com.example.householdrag.ui
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -17,11 +18,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.*
 import com.example.householdrag.api.ApiClient
 import com.example.householdrag.auth.AuthRepository
+import com.example.householdrag.auth.AuthTokenStore
 import kotlinx.coroutines.launch
 
 // 화면의 종류 정의
@@ -38,7 +41,12 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HouseholdApp() {
+    val TAG = "HouseholdApp" // 로그 식별자
+
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    var isAuthenticated by remember { mutableStateOf(false) }
 
     // --- 내비게이션 및 로딩 상태 변수 ---
     var currentScreen by remember { mutableStateOf(Screen.LOGIN) }
@@ -88,6 +96,14 @@ fun HouseholdApp() {
                 TopAppBar(
                     title = { Text("HouseHold RAG") },
                     actions = {
+                        TextButton(onClick = {
+                            AuthTokenStore.clear(context)
+                            // isAuthenticated = false
+                            currentScreen = Screen.LOGIN
+                            statusMessage = "로그아웃 되었습니다."
+                        }) {
+                            Text("로그아웃", color = MaterialTheme.colorScheme.error)
+                        }
                         IconButton(onClick = { scope.launch { refreshExpenses() } }) {
                             Icon(Icons.Default.Refresh, contentDescription = "새로고침")
                         }
@@ -143,15 +159,20 @@ fun HouseholdApp() {
                     Screen.LOGIN -> {
                         LoginScreen(
                             onLoginClick = { email, pw ->
-                                AuthRepository.loginAndSetToken(email, pw) { success, error ->
-                                    if (success) {
-                                        // 메인 화면 이동
-                                    } else {
-                                        // 에러 표시
+                                isLoading = true
+                                AuthRepository.loginAndSetFirebaseIdToken( context, email.trim(), pw) { success, error ->
+                                    scope.launch {
+                                        isLoading = false
+                                        if (success) {
+                                            isAuthenticated = true
+                                            currentScreen = Screen.LIST
+                                        } else {
+                                            // 실패하면 왜 실패했는지 statusMessage
+                                            statusMessage = error ?: "로그인 실패: 정보를 확인하세요."
+                                        }
                                     }
                                 }
-
-                                currentScreen = Screen.LIST
+                                // currentScreen = Screen.LIST
                             },
                             onSignUpClick = { currentScreen = Screen.SIGNUP }
                         )
@@ -160,14 +181,19 @@ fun HouseholdApp() {
                     Screen.SIGNUP -> {
                         SignUpScreen(
                             onSignUpClick = { email, pw ->
-                                AuthRepository.signUpAndInitProfile(email, pw) { success, error ->
-                                    if (success) {
-                                        // 메인 화면 이동
-                                    } else {
-                                        // 에러 표시
+                                isLoading = true
+                                AuthRepository.signUpAndInitProfile( context, email.trim(), pw) { success, error ->
+                                    scope.launch {
+                                        isLoading = false
+                                        if (success) {
+                                            currentScreen = Screen.LOGIN
+                                        } else {
+                                            // 에러 표시
+                                            statusMessage = error ?: "회원가입 실패"
+                                        }
                                     }
                                 }
-                                currentScreen = Screen.LOGIN    // 회원가입 후 로그인 화면으로 이동
+                                // currentScreen = Screen.LOGIN    // 회원가입 후 로그인 화면으로 이동
                             },
                             onBackToLogin = { currentScreen = Screen.LOGIN }
                         )
@@ -250,13 +276,22 @@ fun HouseholdApp() {
                             onQuestionChange = { question = it },
                             answer = answer,
                             onAskClick = {
+                                if (question.isBlank()) return@AskSectionCard // 질문이 비었으면 무시
+
                                 scope.launch {
+                                    isLoading = true
+                                    Log.d(TAG, "AI 질문 전송: $question")
                                     try {
                                         val res = ApiClient.api.ask(AskRequest(question))
+                                        Log.d(TAG, "AI 응답 수신 성공")
                                         answer =
                                             "${res.answer}\n\n참고: ${res.references.joinToString(", ")}"
                                     } catch (e: Exception) {
-                                        statusMessage = "질문 실패"
+                                        Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
+                                        // statusMessage = "질문 실패"
+                                        answer = "죄송해요, 답변을 가져오지 못했어요."
+                                    }finally {
+                                        isLoading = false
                                     }
                                 }
                             }

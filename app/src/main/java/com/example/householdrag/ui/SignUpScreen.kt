@@ -22,6 +22,8 @@ fun SignUpScreen(
     var password by remember { mutableStateOf("") }
     var passwordConfirm by remember { mutableStateOf("") }
 
+    val isPasswordMismatch = password.isNotEmpty() && passwordConfirm.isNotEmpty() && password != passwordConfirm
+
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -66,6 +68,12 @@ fun SignUpScreen(
             leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             visualTransformation = PasswordVisualTransformation(),
+            isError = isPasswordMismatch, // 비밀번호 다를 때
+            supportingText = {
+                if (isPasswordMismatch) {
+                    Text("비밀번호가 일치하지 않습니다.", color = MaterialTheme.colorScheme.error)
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
         )
 
@@ -74,6 +82,7 @@ fun SignUpScreen(
         // 가입 완료 버튼
         Button(
             onClick = { onSignUpClick(email, password) },
+            enabled = password == passwordConfirm && email.isNotEmpty() && password.isNotEmpty(),
             modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
             Text("Sign Up")
