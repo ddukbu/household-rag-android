@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.List
@@ -25,6 +26,7 @@ import com.example.householdrag.api.*
 import com.example.householdrag.api.ApiClient
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
+import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
 
 // 화면의 종류 정의
@@ -34,7 +36,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ApiClient.init(applicationContext)
-        setContent { MaterialTheme { HouseholdApp() } }
+        setContent {
+            HouseholdRAGTheme {
+                // 이 안에서 실행되는 모든 화면(HouseholdApp)이 흰색 배경이 됩니다!
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background // 테마에 설정한 흰색을 가져옴
+                ) {
+                    HouseholdApp()
+                }
+            }
+        }
     }
 }
 
@@ -119,7 +131,9 @@ fun HouseholdApp() {
                         clearForm();
                         currentScreen = Screen.ADD
                     },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.Black,
+                    shape = CircleShape
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "추가")
                 }
@@ -127,19 +141,47 @@ fun HouseholdApp() {
         },
         bottomBar = {
             if (currentScreen != Screen.LOGIN && currentScreen != Screen.SIGNUP) {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = currentScreen == Screen.LIST,
-                        onClick = { currentScreen = Screen.LIST },
-                        label = { Text("목록") },
-                        icon = { Icon(Icons.Default.List, contentDescription = null) }
+                Column {
+                    // 상단과 구분해주는 얇은 노란색 선
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
+                        thickness = 0.5.dp
                     )
-                    NavigationBarItem(
-                        selected = currentScreen == Screen.ASK,
-                        onClick = { currentScreen = Screen.ASK },
-                        label = { Text("분석") },
-                        icon = { Icon(Icons.Default.Search, contentDescription = null) }
-                    )
+
+                    // 하단 바의 색상을 직접 지정
+                    NavigationBar(
+                        containerColor = Color.White, // 배경은 하얗게
+                        tonalElevation = 0.dp
+                    ) {
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.LIST,
+                            onClick = { currentScreen = Screen.LIST },
+                            label = { Text("목록") },
+                            icon = { Icon(Icons.Default.List, contentDescription = null) },
+                            // 선택되었을 때의 노란색 포인트 설정
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary, // 선택시 노란색
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), // 아이콘 뒤에 생기는 동그라미도 연한 노란색으로!
+                                unselectedIconColor = Color.Gray,
+                                unselectedTextColor = Color.Gray
+                            )
+                        )
+
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.ASK,
+                            onClick = { currentScreen = Screen.ASK },
+                            label = { Text("분석") },
+                            icon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                unselectedIconColor = Color.Gray,
+                                unselectedTextColor = Color.Gray
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -166,6 +208,7 @@ fun HouseholdApp() {
                                         if (success) {
                                             isAuthenticated = true
                                             currentScreen = Screen.LIST
+                                            refreshExpenses()
                                         } else {
                                             // 실패하면 왜 실패했는지 statusMessage
                                             statusMessage = error ?: "로그인 실패: 정보를 확인하세요."
@@ -203,10 +246,10 @@ fun HouseholdApp() {
                         // [목록 탭]
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             item {
-                                Text(
-                                    "상태: $statusMessage",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+//                                Text(
+//                                    "상태: $statusMessage",
+//                                    style = MaterialTheme.typography.bodySmall
+//                                )
                             }
                             item { Text("가계부 목록", style = MaterialTheme.typography.headlineSmall) }
                             items(expenses) { expense ->
@@ -321,7 +364,9 @@ fun LoadingOverlay() {
 @Preview(showSystemUi = true, name = "앱 화면 (기기 형태)")
 @Composable
 fun FullAppPreview() {
-    MaterialTheme {
-        HouseholdApp()
+    HouseholdRAGTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            HouseholdApp()
+        }
     }
 }

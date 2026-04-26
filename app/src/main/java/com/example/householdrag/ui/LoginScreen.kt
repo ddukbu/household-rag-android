@@ -9,10 +9,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.householdrag.ui.theme.CommonTextField
 
 @Composable
 fun LoginScreen(
@@ -30,26 +32,24 @@ fun LoginScreen(
         Text("Login", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(32.dp))
 
-        // 이메일 입력창
-        OutlinedTextField(
+        // 이메일 입력
+        CommonTextField(
             value = email,
             onValueChange = { email = it },
-            label = { Text("Email") },
+            label = "Email",
             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 비밀번호 입력창
-        OutlinedTextField(
+        // 비밀번호 입력
+        CommonTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
+            label = "Password",
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation(), // 비밀번호 숨기기
+            visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
         )
 
@@ -65,7 +65,7 @@ fun LoginScreen(
 
         // 회원가입 유도 버튼
         TextButton(onClick = onSignUpClick) {
-            Text("계정이 없으신가요? 회원가입")
+            Text("계정이 없으신가요? 회원가입",color = Color.Gray)
         }
     }
 }
