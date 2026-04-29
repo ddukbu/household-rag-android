@@ -25,6 +25,7 @@ import com.example.householdrag.api.*
 import com.example.householdrag.api.ApiClient
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
+import com.example.householdrag.auth.FirebaseAuthManager
 import kotlinx.coroutines.launch
 
 // 화면의 종류 정의
@@ -73,6 +74,29 @@ fun HouseholdApp() {
             ""
     }
 
+    fun resetUserState() {
+        expenses = emptyList()
+        statusMessage = "준비됨"
+        editId = null
+        date = ""
+        category = ""
+        amount = ""
+        paymentMethod = ""
+        place = ""
+        memo = ""
+        question = ""
+        answer = ""
+    }
+
+    fun logout() {
+        FirebaseAuthManager.logout()
+        AuthTokenStore.clear(context)
+        resetUserState()
+        isAuthenticated = false
+        currentScreen = Screen.LOGIN
+        statusMessage = "로그아웃 되었습니다."
+    }
+
     // 목록 새로고침 함수
     suspend fun refreshExpenses() {
         isLoading = true // 로딩 켜기
@@ -96,12 +120,7 @@ fun HouseholdApp() {
                 TopAppBar(
                     title = { Text("HouseHold RAG") },
                     actions = {
-                        TextButton(onClick = {
-                            AuthTokenStore.clear(context)
-                            // isAuthenticated = false
-                            currentScreen = Screen.LOGIN
-                            statusMessage = "로그아웃 되었습니다."
-                        }) {
+                        TextButton(onClick = { logout() }) {
                             Text("로그아웃", color = MaterialTheme.colorScheme.error)
                         }
                         IconButton(onClick = { scope.launch { refreshExpenses() } }) {
@@ -164,6 +183,7 @@ fun HouseholdApp() {
                                     scope.launch {
                                         isLoading = false
                                         if (success) {
+                                            resetUserState()
                                             isAuthenticated = true
                                             currentScreen = Screen.LIST
                                         } else {
@@ -284,24 +304,8 @@ fun HouseholdApp() {
                                     try {
                                         val res = ApiClient.api.ask(AskRequest(question))
                                         Log.d(TAG, "AI 응답 수신 성공")
-                                        val rSecText = res.r_sec?.toString().orEmpty()
-                                        val gSecText = res.g_sec?.toString().orEmpty()
-                                        val tSecText = res.t_sec?.toString().orEmpty()
-                                        answer = buildString {
-                                            append(res.answer.orEmpty())
-                                            if (rSecText.isNotEmpty() || gSecText.isNotEmpty() || tSecText.isNotEmpty()) {
-                                                append("\n\n시간: r=")
-                                                append(rSecText.ifEmpty { "-" })
-                                                append(", g=")
-                                                append(gSecText.ifEmpty { "-" })
-                                                append(", t=")
-                                                append(tSecText.ifEmpty { "-" })
-                                            }
-                                            if (res.references.isNotEmpty()) {
-                                                append("\n\n참고: ")
-                                                append(res.references.joinToString(", "))
-                                            }
-                                        }
+                                        answer =
+                                            "${res.answer}\n\n참고: ${res.references.joinToString(", ")}"
                                     } catch (e: Exception) {
                                         Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
                                         // statusMessage = "질문 실패"
