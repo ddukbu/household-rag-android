@@ -289,6 +289,32 @@ fun HouseholdApp() {
                                         answer = "${res.answer}\n\n참고: ${res.references.joinToString(", ")}"
                                     } catch (e: Exception) { answer = "죄송해요, 답변을 가져오지 못했어요." }
                                     finally { isLoading = false }
+                                        Log.d(TAG, "AI 응답 수신 성공")
+                                        val rSecText = res.r_sec?.toString().orEmpty()
+                                        val gSecText = res.g_sec?.toString().orEmpty()
+                                        val tSecText = res.t_sec?.toString().orEmpty()
+                                        answer = buildString {
+                                            append(res.answer.orEmpty())
+                                            if (rSecText.isNotEmpty() || gSecText.isNotEmpty() || tSecText.isNotEmpty()) {
+                                                append("\n\n시간: r=")
+                                                append(rSecText.ifEmpty { "-" })
+                                                append(", g=")
+                                                append(gSecText.ifEmpty { "-" })
+                                                append(", t=")
+                                                append(tSecText.ifEmpty { "-" })
+                                            }
+                                            if (res.references.isNotEmpty()) {
+                                                append("\n\n참고: ")
+                                                append(res.references.joinToString(", "))
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
+                                        // statusMessage = "질문 실패"
+                                        answer = "죄송해요, 답변을 가져오지 못했어요."
+                                    }finally {
+                                        isLoading = false
+                                    }
                                 }
                             }
                         )

@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.householdrag.auth.AuthSessionEvents
 import com.example.householdrag.auth.AuthTokenStore
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
@@ -23,6 +24,11 @@ object ApiClient {
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            // Render와 같은 환경의 cold start를 고려해 기본 timeout을 여유 있게 설정한다.
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(45, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val original = chain.request()
                 // 저장된 access token을 읽어 현재 요청에 붙일지 판단한다.
