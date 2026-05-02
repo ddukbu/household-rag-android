@@ -25,7 +25,6 @@ import com.example.householdrag.api.*
 import com.example.householdrag.api.ApiClient
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
-import com.example.householdrag.auth.FirebaseAuthManager
 import kotlinx.coroutines.launch
 
 // 화면의 종류 정의
@@ -74,29 +73,6 @@ fun HouseholdApp() {
             ""
     }
 
-    fun resetUserState() {
-        expenses = emptyList()
-        statusMessage = "준비됨"
-        editId = null
-        date = ""
-        category = ""
-        amount = ""
-        paymentMethod = ""
-        place = ""
-        memo = ""
-        question = ""
-        answer = ""
-    }
-
-    fun logout() {
-        FirebaseAuthManager.logout()
-        AuthTokenStore.clear(context)
-        resetUserState()
-        isAuthenticated = false
-        currentScreen = Screen.LOGIN
-        statusMessage = "로그아웃 되었습니다."
-    }
-
     // 목록 새로고침 함수
     suspend fun refreshExpenses() {
         isLoading = true // 로딩 켜기
@@ -120,7 +96,12 @@ fun HouseholdApp() {
                 TopAppBar(
                     title = { Text("HouseHold RAG") },
                     actions = {
-                        TextButton(onClick = { logout() }) {
+                        TextButton(onClick = {
+                            AuthTokenStore.clear(context)
+                            // isAuthenticated = false
+                            currentScreen = Screen.LOGIN
+                            statusMessage = "로그아웃 되었습니다."
+                        }) {
                             Text("로그아웃", color = MaterialTheme.colorScheme.error)
                         }
                         IconButton(onClick = { scope.launch { refreshExpenses() } }) {
@@ -183,7 +164,6 @@ fun HouseholdApp() {
                                     scope.launch {
                                         isLoading = false
                                         if (success) {
-                                            resetUserState()
                                             isAuthenticated = true
                                             currentScreen = Screen.LIST
                                         } else {
