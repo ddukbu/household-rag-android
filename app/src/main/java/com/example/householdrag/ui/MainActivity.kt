@@ -1,6 +1,7 @@
 package com.example.householdrag.ui
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -286,13 +287,12 @@ fun HouseholdApp() {
                                     isLoading = true
                                     try {
                                         val res = ApiClient.api.ask(AskRequest(question))
-                                        answer = "${res.answer}\n\n참고: ${res.references.joinToString(", ")}"
-                                    } catch (e: Exception) { answer = "죄송해요, 답변을 가져오지 못했어요." }
-                                    finally { isLoading = false }
                                         Log.d(TAG, "AI 응답 수신 성공")
+
                                         val rSecText = res.r_sec?.toString().orEmpty()
                                         val gSecText = res.g_sec?.toString().orEmpty()
                                         val tSecText = res.t_sec?.toString().orEmpty()
+
                                         answer = buildString {
                                             append(res.answer.orEmpty())
                                             if (rSecText.isNotEmpty() || gSecText.isNotEmpty() || tSecText.isNotEmpty()) {
@@ -310,9 +310,8 @@ fun HouseholdApp() {
                                         }
                                     } catch (e: Exception) {
                                         Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
-                                        // statusMessage = "질문 실패"
                                         answer = "죄송해요, 답변을 가져오지 못했어요."
-                                    }finally {
+                                    } finally {
                                         isLoading = false
                                     }
                                 }

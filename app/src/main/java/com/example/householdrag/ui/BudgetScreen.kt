@@ -54,7 +54,6 @@ fun BudgetScreen(
         .sumOf { it.amount }
 
     // TODO: 나중에 DB나 API 연결
-    // 고정 수익/지출 (이건 나중에 DB나 API 연결!)
     val fixedIncome = 2500000
     val fixedExpense = 1200000
 
