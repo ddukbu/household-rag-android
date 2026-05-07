@@ -34,6 +34,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.householdrag.api.Expense
+import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import com.example.householdrag.ui.theme.LemonMain
 import com.kizitonwose.calendar.compose.HorizontalCalendar
 import com.kizitonwose.calendar.compose.rememberCalendarState
@@ -148,7 +149,7 @@ fun DayElement(day: CalendarDay, isSelected: Boolean, hasExpense: Boolean, onCli
                 text = day.date.dayOfMonth.toString(),
                 color = when {
                     day.position != DayPosition.MonthDate -> Color.LightGray // 이전/다음 달 날짜
-                    isSelected -> MaterialTheme.colorScheme.primary
+                    isSelected -> Color.Black
                     else -> Color.Black
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -204,7 +205,7 @@ fun CalendarScreenPreview() {
         )
     )
 
-    MaterialTheme {
+    HouseholdRAGTheme {
         CalendarScreen(expenses = demoExpenses)
     }
 }

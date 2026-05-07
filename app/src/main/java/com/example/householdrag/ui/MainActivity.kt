@@ -85,7 +85,7 @@ fun HouseholdApp() {
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf(Screen.LIST) } // 테스트 시 변경
+    var currentScreen by remember { mutableStateOf(Screen.ADD) } // 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---

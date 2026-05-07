@@ -1,7 +1,7 @@
 package com.example.householdrag.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -57,7 +58,10 @@ fun CommonTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    readOnly: Boolean = false,
+    trailingIcon: @Composable (() -> Unit)? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default
 ) {
@@ -65,7 +69,10 @@ fun CommonTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
+        readOnly = readOnly,
+        trailingIcon = trailingIcon,
         leadingIcon = leadingIcon,
+        interactionSource = interactionSource,
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
