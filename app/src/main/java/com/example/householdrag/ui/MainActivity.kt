@@ -289,9 +289,9 @@ fun HouseholdApp() {
                                         val res = ApiClient.api.ask(AskRequest(question))
                                         Log.d(TAG, "AI 응답 수신 성공")
 
-                                        val rSecText = res.r_sec?.toString().orEmpty()
-                                        val gSecText = res.g_sec?.toString().orEmpty()
-                                        val tSecText = res.t_sec?.toString().orEmpty()
+                                        val rSecText = res.retrieval_seconds?.toString().orEmpty()
+                                        val gSecText = res.generation_seconds?.toString().orEmpty()
+                                        val tSecText = res.total_seconds?.toString().orEmpty()
 
                                         answer = buildString {
                                             append(res.answer.orEmpty())
