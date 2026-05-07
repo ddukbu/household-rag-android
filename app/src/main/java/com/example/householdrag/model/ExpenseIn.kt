@@ -1,8 +1,7 @@
 package com.example.householdrag.model
 
-// 서버에 저장된 지출 항목 1건을 표현하는 응답 모델.
-data class Expense(
-    val id: String,
+// 지출 항목을 서버로 생성/수정할 때 보내는 요청 모델.
+data class ExpenseIn(
     val date: String,
     val time: String,
     val is_fixed_expense: Boolean,
