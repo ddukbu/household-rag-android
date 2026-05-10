@@ -21,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.Expense
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
+import com.example.householdrag.ui.theme.formatAmount
 
 @Composable
 fun ExpenseItemCard(
@@ -36,7 +37,16 @@ fun ExpenseItemCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // [상단] 사용처와 금액
+            Row() {
+                Text(
+                    text = "${expense.date} ${expense.time}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+
+            // 사용처와 금액
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -49,42 +59,39 @@ fun ExpenseItemCard(
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "${expense.amount}원",
+                    text = "${formatAmount(expense.amount)}원",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.Black
                 )
             }
 
-            // [중간] 날짜와 메모 (데이터가 있을 때만 한 줄로)
-            Text(
-                text = "${expense.date}${if(expense.memo.isNotBlank()) " · ${expense.memo}" else ""}",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-
-            // [하단] 카테고리 · 결제수단 · 수정/삭제 버튼
+            // 수정 / 삭제 버튼
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .padding(top = 0.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                //verticalAlignment = Alignment.CenterVertically
             ) {
+                // 카테고리 메모 등
                 Text(
-                    text = "${expense.category} · ${expense.payment_method}",
+                    text = "${expense.category} · ${expense.payment_method}" +
+                            "${if (expense.memo.isNotBlank()) " · ${expense.memo}" else ""}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
-
                 // 버튼들
                 Row {
                     TextButton(
                         onClick = onEditClick,
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
-                        Text("수정", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary)
+                        Text(
+                            "수정",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
                     }
                     TextButton(
                         onClick = onDeleteClick,
@@ -95,6 +102,44 @@ fun ExpenseItemCard(
                     }
                 }
             }
+
+//            // 카테고리, 메모 등
+//            Text(
+//                text = "${expense.category} · ${expense.payment_method}" +
+//                        "${if (expense.memo.isNotBlank()) " · ${expense.memo}" else ""}",
+//                style = MaterialTheme.typography.bodySmall,
+//                color = Color.Gray
+//            )
+
+//            //수정/삭제 버튼
+//            Row(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(top = 0.dp),
+//                horizontalArrangement = Arrangement.End,
+//                verticalAlignment = Alignment.CenterVertically
+//            ) {
+//                // 버튼들
+//                Row {
+//                    TextButton(
+//                        onClick = onEditClick,
+//                        contentPadding = PaddingValues(horizontal = 8.dp)
+//                    ) {
+//                        Text(
+//                            "수정",
+//                            style = MaterialTheme.typography.labelLarge,
+//                            color = MaterialTheme.colorScheme.onPrimary
+//                        )
+//                    }
+//                    TextButton(
+//                        onClick = onDeleteClick,
+//                        contentPadding = PaddingValues(horizontal = 8.dp),
+//                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFE53935))
+//                    ) {
+//                        Text("삭제", style = MaterialTheme.typography.labelLarge)
+//                    }
+//                }
+//            }
         }
     }
 }
@@ -111,7 +156,9 @@ fun ExpenseItemCardPreview() {
             date = "2026-04-30",
             memo = "점심 햄버거 세트",
             category = "식비",
-            payment_method = "카카오페이"
+            payment_method = "카카오페이",
+            time = "12:00",
+            is_fixed_expense = true
         )
 
         Column(modifier = Modifier.padding(16.dp)) {

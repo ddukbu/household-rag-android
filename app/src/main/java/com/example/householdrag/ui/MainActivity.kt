@@ -52,9 +52,9 @@ import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.ApiClient
 import com.example.householdrag.api.AskRequest
 import com.example.householdrag.api.Expense
-import com.example.householdrag.api.ExpenseRequest
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
+import com.example.householdrag.model.BudgetOut
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
 
@@ -85,7 +85,7 @@ fun HouseholdApp() {
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf(Screen.ADD) } // 테스트 시 변경
+    var currentScreen by remember { mutableStateOf(Screen.ASK) } // 기본은 LOGIN 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---
@@ -103,9 +103,28 @@ fun HouseholdApp() {
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
 
+    var currentYearMonth by remember { mutableStateOf(
+        java.time.YearMonth.now().toString() // 기본값: 현재 연-월 ("2026-05")
+    )}
+    var budgetData by remember { mutableStateOf<BudgetOut?>(null) }
+
     // --- 로직 함수 ---
     fun clearForm() {
-        editId = null; date = ""; category = ""; amount = ""; paymentMethod = ""; place = ""; memo = ""
+        editId = null; date = ""; category = ""; amount = ""; paymentMethod = ""; place = ""; memo =
+            ""
+    }
+
+    // todo 현제 날짜?
+    // 예산 데이터를 서버에서 가져오는 함수
+    fun refreshBudget(yearMonth: String) {
+        scope.launch {
+            try {
+                val response = ApiClient.api.getBudget(yearMonth)
+                budgetData = response
+            } catch (e: Exception) {
+                statusMessage = "예산 데이터를 가져오지 못했습니다."
+            }
+        }
     }
 
     suspend fun refreshExpenses() {
@@ -206,11 +225,18 @@ fun HouseholdApp() {
                 Screen.LOGIN -> LoginScreen(
                     onLoginClick = { email, pw ->
                         isLoading = true
-                        AuthRepository.loginAndSetFirebaseIdToken(context, email.trim(), pw) { success, error ->
+                        AuthRepository.loginAndSetFirebaseIdToken(
+                            context,
+                            email.trim(),
+                            pw
+                        ) { success, error ->
                             scope.launch {
                                 isLoading = false
-                                if (success) { currentScreen = Screen.LIST; refreshExpenses() }
-                                else { statusMessage = error ?: "로그인 실패" }
+                                if (success) {
+                                    currentScreen = Screen.LIST; refreshExpenses()
+                                } else {
+                                    statusMessage = error ?: "로그인 실패"
+                                }
                             }
                         }
                     },
@@ -220,7 +246,11 @@ fun HouseholdApp() {
                 Screen.SIGNUP -> SignUpScreen(
                     onSignUpClick = { email, pw ->
                         isLoading = true
-                        AuthRepository.signUpAndInitProfile(context, email.trim(), pw) { success, error ->
+                        AuthRepository.signUpAndInitProfile(
+                            context,
+                            email.trim(),
+                            pw
+                        ) { success, error ->
                             scope.launch {
                                 isLoading = false
                                 if (success) currentScreen = Screen.LOGIN
@@ -232,7 +262,9 @@ fun HouseholdApp() {
                 )
 
                 Screen.LIST -> {
-                    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    Column(modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)) {
                         Text("가계부 목록", style = MaterialTheme.typography.headlineSmall)
                         Spacer(modifier = Modifier.height(12.dp))
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -240,12 +272,20 @@ fun HouseholdApp() {
                                 ExpenseItemCard(
                                     expense = expense,
                                     onEditClick = {
-                                        editId = expense.id; date = expense.date; category = expense.category
-                                        amount = expense.amount.toString(); paymentMethod = expense.payment_method
+                                        editId = expense.id; date = expense.date; category =
+                                        expense.category
+                                        amount = expense.amount.toString(); paymentMethod =
+                                        expense.payment_method
                                         place = expense.place; memo = expense.memo
                                         currentScreen = Screen.ADD
                                     },
-                                    onDeleteClick = { scope.launch { ApiClient.api.deleteExpense(expense.id); refreshExpenses() } }
+                                    onDeleteClick = {
+                                        scope.launch {
+                                            ApiClient.api.deleteExpense(
+                                                expense.id
+                                            ); refreshExpenses()
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -253,7 +293,9 @@ fun HouseholdApp() {
                 }
 
                 Screen.ADD -> {
-                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)) {
                         ExpenseInputCard(
                             editId = editId, date = date, onDateChange = { date = it },
                             category = category, onCategoryChange = { category = it },
@@ -261,23 +303,52 @@ fun HouseholdApp() {
                             paymentMethod = paymentMethod, onPaymentChange = { paymentMethod = it },
                             place = place, onPlaceChange = { place = it },
                             memo = memo, onMemoChange = { memo = it },
-                            onSaveClick = {
+                            onResetClick = { clearForm(); currentScreen = Screen.LIST },
+
+                            // 지출 저장 로직 (ExpenseRequest 처리)
+                            onSaveExpense = { expenseReq ->
                                 scope.launch {
                                     try {
-                                        val req = ExpenseRequest(date, category, amount.toIntOrNull() ?: 0, paymentMethod, place, memo)
-                                        if (editId == null) ApiClient.api.createExpense(req)
-                                        else editId?.let { ApiClient.api.updateExpense(it, req) }
-                                        clearForm(); refreshExpenses(); currentScreen = Screen.LIST
-                                    } catch (e: Exception) { statusMessage = "저장 실패" }
+                                        if (editId == null) {
+                                            ApiClient.api.createExpense(expenseReq) // 신규 지출
+                                        } else {
+                                            editId?.let { ApiClient.api.updateExpense(it, expenseReq) } // 지출 수정
+                                        }
+                                        clearForm()
+                                        refreshExpenses()
+                                        currentScreen = Screen.LIST
+                                    } catch (e: Exception) {
+                                        statusMessage = "지출 저장 실패"
+                                    }
                                 }
                             },
-                            onResetClick = { clearForm(); currentScreen = Screen.LIST }
+
+                            // 수입 저장 로직 (IncomeIn 처리)
+                            onSaveIncome = { incomeReq ->
+                                scope.launch {
+                                    try {
+                                        // 수입은 IncomeApiService를 사용해야 합니다
+                                        if (editId == null) {
+                                            ApiClient.api.createIncome(incomeReq) // 신규 수입
+                                        } else {
+                                            editId?.let { ApiClient.api.updateIncome(it, incomeReq) } // 수입 수정
+                                        }
+                                        clearForm()
+                                        refreshExpenses() // 목록 새로고침 (수입도 포함되게 API 확인 필요!)
+                                        currentScreen = Screen.LIST
+                                    } catch (e: Exception) {
+                                        statusMessage = "수입 저장 실패"
+                                    }
+                                }
+                            }
                         )
                     }
                 }
 
                 Screen.ASK -> {
-                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)) {
                         AskSectionCard(
                             question = question, onQuestionChange = { question = it },
                             answer = answer,
@@ -320,7 +391,22 @@ fun HouseholdApp() {
                     }
                 }
 
-                Screen.BUDGET -> BudgetScreen(expenses = expenses)
+                Screen.BUDGET -> {
+                    LaunchedEffect(currentYearMonth) {
+                        refreshBudget(currentYearMonth)
+                    }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        BudgetScreen(
+                            currentYM = currentYearMonth,
+                            budgetData = budgetData,
+                            onMonthChange = { newYM ->
+                                currentYearMonth = newYM // 화살표 클릭 시 상태 업데이트
+                            }
+                        )
+                    }
+                }
+
                 Screen.CALENDAR -> CalendarScreen(expenses = expenses)
             }
 

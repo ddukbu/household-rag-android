@@ -2,6 +2,7 @@ package com.example.householdrag.ui
 
 import android.app.DatePickerDialog
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -10,9 +11,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,12 +37,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.householdrag.api.ExpenseRequest
+import com.example.householdrag.api.IncomeIn
 import com.example.householdrag.ui.theme.CommonTextField
+import com.example.householdrag.ui.theme.LemonDeep
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,8 +62,10 @@ fun ExpenseInputCard(
     paymentMethod: String, onPaymentChange: (String) -> Unit,
     place: String, onPlaceChange: (String) -> Unit,
     memo: String, onMemoChange: (String) -> Unit,
-    onSaveClick: () -> Unit,
-    onResetClick: () -> Unit
+    //onSaveClick: () -> Unit,
+    onResetClick: () -> Unit,
+    onSaveExpense: (ExpenseRequest) -> Unit, // 지출 저장 콜백
+    onSaveIncome: (IncomeIn) -> Unit        // 수입 저장 콜백
 ) {
     // 드롭다운의 펼침 상태를 관리하는 변수들
     var categoryExpanded by remember { mutableStateOf(false) }
@@ -65,9 +76,18 @@ fun ExpenseInputCard(
     val paymentOptions = listOf("카드", "현금", "계좌이체", "기타")
 
     val context = LocalContext.current
+    var isExpenseMode by remember { mutableStateOf(true) } // 지출/수입 모드 전환
+    var isFixed by remember { mutableStateOf(false) }     // 고정/변동 스위치
+
+    // 날짜
     val calendar = Calendar.getInstance()
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val interactionSourceDate = remember { MutableInteractionSource() }
+    val isDatePressed by interactionSourceDate.collectIsPressedAsState()
+
+    // 시간 상태 추가
+    var selectedTime by remember { mutableStateOf("12:00") }
+    val interactionSourceTime = remember { MutableInteractionSource() }
+    val isTimePressed by interactionSourceTime.collectIsPressedAsState()
 
     // 달력 다이얼로그를 띄우는 함수
     val datePickerDialog = DatePickerDialog(
@@ -81,14 +101,22 @@ fun ExpenseInputCard(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
-//    // 클릭 감지 시 다이얼로그 띄우기
-//    if (isPressed) {
-//        datePickerDialog.show()
-//    }
+    // 시간 선택 다이얼로그
+    val timePickerDialog = android.app.TimePickerDialog(
+        context,
+        { _, hour, minute -> selectedTime = String.format("%02d:%02d", hour, minute) },
+        12, 0, true
+    )
 
-    androidx.compose.runtime.LaunchedEffect(isPressed) {
-        if (isPressed) {
+    androidx.compose.runtime.LaunchedEffect(isDatePressed) {
+        if (isDatePressed) {
             datePickerDialog.show()
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(isTimePressed) {
+        if (isTimePressed) {
+            timePickerDialog.show()
         }
     }
 
@@ -97,12 +125,78 @@ fun ExpenseInputCard(
             containerColor = Color.White
         ), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = if (editId == null) "가계부 입력" else "가계부 수정",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (editId == null) "가계부 입력" else "가계부 수정",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFF3F3F3), // 연한 회색 배경
+                ) {
+                    Row(modifier = Modifier.padding(4.dp)) {
+                        TypeSelectionChip(
+                            text = "지출",
+                            isSelected = isExpenseMode,
+                            onClick = { isExpenseMode = true }
+                        )
+                        TypeSelectionChip(
+                            text = "수입",
+                            isSelected = !isExpenseMode,
+                            onClick = { isExpenseMode = false }
+                        )
+                    }
+                }
+            }
+
+
+//            Text(
+//                text = if (editId == null) "가계부 입력" else "가계부 수정",
+//                style = MaterialTheme.typography.titleMedium
+//            )
+//            Spacer(modifier = Modifier.height(8.dp))
+//
+//            // 지출/수입 버튼
+//            Row(
+//                modifier = Modifier.fillMaxWidth(),
+//                horizontalArrangement = Arrangement.spacedBy(8.dp)
+//            ) {
+//                Button(
+//                    onClick = { isExpenseMode = true },
+//                    modifier = Modifier.weight(1f),
+//                    colors = ButtonDefaults.buttonColors(containerColor = if (isExpenseMode) LemonDeep else Color.LightGray)
+//                ) { Text("지출") }
+//                Button(
+//                    onClick = { isExpenseMode = false },
+//                    modifier = Modifier.weight(1f),
+//                    colors = ButtonDefaults.buttonColors(containerColor = if (!isExpenseMode) LemonDeep else Color.LightGray)
+//                ) { Text("수입") }
+//            }
+
+            // Spacer(modifier = Modifier.height(16.dp))
+
+
+            // 고정 여부
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(end = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                androidx.compose.material3.Checkbox(
+                    checked = isFixed,
+                    onCheckedChange = { isFixed = it })
+                Text(
+                    text = if (isExpenseMode) "고정 지출" else "고정 수입",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
 
             // 날짜 입력 (직접 입력 대신 클릭 시 달력 호출)
             Row(
@@ -111,9 +205,7 @@ fun ExpenseInputCard(
             ) {
                 // 클릭하면 달력이 뜨는 Box
                 Box(
-                    modifier = Modifier
-                        .weight(1f) // 버튼 제외 남은 공간 다 차지
-                        // .clickable { datePickerDialog.show() }
+                    modifier = Modifier.weight(1f)
                 ) {
                     CommonTextField(
                         value = date,
@@ -124,20 +216,35 @@ fun ExpenseInputCard(
                         trailingIcon = {
                             Icon(imageVector = Icons.Default.DateRange, contentDescription = null)
                         },
-                        interactionSource = interactionSource
+                        interactionSource = interactionSourceDate
                     )
                 }
-
-//                Spacer(modifier = Modifier.width(8.dp))
-//                TextButton(
-//                    onClick = {
-//                        val today = java.time.LocalDate.now().toString()
-//                        onDateChange(today)
-//                    }
-//                ) {
-//                    Text("오늘", fontWeight = FontWeight.Bold)
-//                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // 시간
+                Box(
+                    modifier = Modifier
+                        .weight(0.6f)
+                ) {
+                    CommonTextField(
+                        value = selectedTime,
+                        onValueChange = {},
+                        label = "시간",
+                        readOnly = true,
+                        interactionSource = interactionSourceTime
+                    )
+                }
             }
+//
+//            // 고정 여부
+//            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+//                androidx.compose.material3.Checkbox(
+//                    checked = isFixed,
+//                    onCheckedChange = { isFixed = it })
+//                Text(
+//                    text = if (isExpenseMode) "고정 지출" else "고정 수입",
+//                    style = MaterialTheme.typography.bodySmall
+//                )
+//            }
 
             // 카테고리 드롭다운 (스피너 역할)
             ExposedDropdownMenuBox(
@@ -245,9 +352,38 @@ fun ExpenseInputCard(
                 TextButton(onClick = onResetClick) {
                     Text("초기화", color = Color.Gray)
                 }
+
                 Spacer(modifier = Modifier.width(8.dp))
+
+                // TODO: 지출은 Expense, ExpenseIn, ExpenseRequest 중에 뭐 사용 해야하는 지 모르겠음
+                // TODO: 마찬가지로 수익은 Income, IncomeIn 은 뭐 사용함?
                 Button(
-                    onClick = onSaveClick,
+                    onClick = {
+                        val amountInt = amount.toIntOrNull() ?: 0
+                        if (isExpenseMode) {
+                            ExpenseRequest(
+                                date = date,
+                                time = selectedTime,
+                                category = category,
+                                amount = amountInt,
+                                payment_method = paymentMethod, // 지출은 결제수단
+                                place = place,                  // 지출은 사용처
+                                memo = memo,
+                                is_fixed_expense = isFixed
+                            )
+                        } else {
+                            IncomeIn(
+                                date = date,
+                                time = selectedTime,
+                                is_fixed_income = isFixed,
+                                category = category,
+                                amount = amountInt,
+                                deposit_method = paymentMethod, // 수입 모델에선 deposit_method로 매핑
+                                deposit_source = place,         // 수입 모델에선 deposit_source로 매핑
+                                memo = memo
+                            )
+                        }
+                    },
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(if (editId == null) "저장" else "수정")
@@ -273,4 +409,54 @@ fun InputTextField(
             .padding(vertical = 4.dp),
         keyboardOptions = if (isNumber) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default
     )
+}
+
+@Composable
+fun TypeSelectionChip(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(if (isSelected) LemonDeep else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = if (isSelected) Color.Black else Color.Gray
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "가계부 입력 카드 미리보기")
+@Composable
+fun ExpenseInputCardPreview() {
+    com.example.householdrag.ui.theme.HouseholdRAGTheme {
+        Box(modifier = Modifier.padding(16.dp)) {
+            ExpenseInputCard(
+                editId = null,
+                date = "2026-05-10",
+                onDateChange = {},
+                category = "식비",
+                onCategoryChange = {},
+                amount = "10000",
+                onAmountChange = {},
+                paymentMethod = "카드",
+                onPaymentChange = {},
+                place = "스타벅스",
+                onPlaceChange = {},
+                memo = "아메리카노",
+                onMemoChange = {},
+                onResetClick = {},
+                onSaveExpense = {},
+                onSaveIncome = {}
+            )
+        }
+    }
 }

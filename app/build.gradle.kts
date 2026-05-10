@@ -66,4 +66,7 @@ dependencies {
     implementation("com.kizitonwose.calendar:compose:2.6.2")
 
     implementation("androidx.compose.material:material-ripple")
+    // 확장 아이콘 라이브러리 추가
+    implementation("androidx.compose.material:material-icons-extended:1.6.0")
+
 }
