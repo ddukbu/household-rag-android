@@ -5,51 +5,87 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.householdrag.api.*
 import com.example.householdrag.api.ApiClient
+import com.example.householdrag.api.AskRequest
+import com.example.householdrag.api.Expense
+import com.example.householdrag.api.ExpenseRequest
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
+import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
 
-// 화면의 종류 정의
-enum class Screen { LOGIN, SIGNUP, LIST, ADD, ASK }
+enum class Screen { LOGIN, SIGNUP, LIST, CALENDAR, ADD, ASK, BUDGET }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ApiClient.init(applicationContext)
-        setContent { MaterialTheme { HouseholdApp() } }
+        setContent {
+            HouseholdRAGTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    HouseholdApp()
+                }
+            }
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HouseholdApp() {
-    val TAG = "HouseholdApp" // 로그 식별자
-
+    val TAG = "HouseholdApp"
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-
-    // --- 내비게이션 및 로딩 상태 변수 ---
-    var currentScreen by remember { mutableStateOf(Screen.LOGIN) }
+    var currentScreen by remember { mutableStateOf(Screen.ADD) } // 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---
@@ -69,27 +105,23 @@ fun HouseholdApp() {
 
     // --- 로직 함수 ---
     fun clearForm() {
-        editId = null; date = ""; category = ""; amount = ""; paymentMethod = ""; place = ""; memo =
-            ""
+        editId = null; date = ""; category = ""; amount = ""; paymentMethod = ""; place = ""; memo = ""
     }
 
-    // 목록 새로고침 함수
     suspend fun refreshExpenses() {
-        isLoading = true // 로딩 켜기
+        isLoading = true
         try {
             expenses = ApiClient.api.getExpenses()
             statusMessage = "목록 업데이트 성공"
         } catch (e: Exception) {
             statusMessage = "불러오기 실패"
-            //println("LogTest: 에러 발생 -> ${e.message}") // 에러 내용 확인용
         } finally {
-            isLoading = false // 로딩 끄기
+            isLoading = false
         }
     }
 
     LaunchedEffect(Unit) { refreshExpenses() }
 
-    // --- UI 조립 ---
     Scaffold(
         topBar = {
             if (currentScreen != Screen.LOGIN && currentScreen != Screen.SIGNUP) {
@@ -98,7 +130,6 @@ fun HouseholdApp() {
                     actions = {
                         TextButton(onClick = {
                             AuthTokenStore.clear(context)
-                            // isAuthenticated = false
                             currentScreen = Screen.LOGIN
                             statusMessage = "로그아웃 되었습니다."
                         }) {
@@ -111,15 +142,13 @@ fun HouseholdApp() {
                 )
             }
         },
-        // 화면 우측 하단에 떠 있는 '추가' 버튼
         floatingActionButton = {
             if (currentScreen == Screen.LIST) {
                 FloatingActionButton(
-                    onClick = {
-                        clearForm();
-                        currentScreen = Screen.ADD
-                    },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    onClick = { clearForm(); currentScreen = Screen.ADD },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.Black,
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "추가")
                 }
@@ -127,19 +156,43 @@ fun HouseholdApp() {
         },
         bottomBar = {
             if (currentScreen != Screen.LOGIN && currentScreen != Screen.SIGNUP) {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = currentScreen == Screen.LIST,
-                        onClick = { currentScreen = Screen.LIST },
-                        label = { Text("목록") },
-                        icon = { Icon(Icons.Default.List, contentDescription = null) }
+                Column {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
+                        thickness = 0.5.dp
                     )
-                    NavigationBarItem(
-                        selected = currentScreen == Screen.ASK,
-                        onClick = { currentScreen = Screen.ASK },
-                        label = { Text("분석") },
-                        icon = { Icon(Icons.Default.Search, contentDescription = null) }
-                    )
+                    NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.BUDGET,
+                            onClick = { currentScreen = Screen.BUDGET },
+                            label = { Text("예산") },
+                            icon = { Icon(Icons.Default.Build, contentDescription = null) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color.Black,
+                                indicatorColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.LIST,
+                            onClick = { currentScreen = Screen.LIST },
+                            label = { Text("목록") },
+                            icon = { Icon(Icons.Default.List, contentDescription = null) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            )
+                        )
+                        NavigationBarItem(
+                            selected = currentScreen == Screen.ASK,
+                            onClick = { currentScreen = Screen.ASK },
+                            label = { Text("분석") },
+                            icon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -149,93 +202,60 @@ fun HouseholdApp() {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-
-            Box(
-                modifier = Modifier
-                    //.padding(innerPadding)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 16.dp)
-            ) {
-                when (currentScreen) {
-                    Screen.LOGIN -> {
-                        LoginScreen(
-                            onLoginClick = { email, pw ->
-                                isLoading = true
-                                AuthRepository.loginAndSetFirebaseIdToken( context, email.trim(), pw) { success, error ->
-                                    scope.launch {
-                                        isLoading = false
-                                        if (success) {
-                                            isAuthenticated = true
-                                            currentScreen = Screen.LIST
-                                        } else {
-                                            // 실패하면 왜 실패했는지 statusMessage
-                                            statusMessage = error ?: "로그인 실패: 정보를 확인하세요."
-                                        }
-                                    }
-                                }
-                                // currentScreen = Screen.LIST
-                            },
-                            onSignUpClick = { currentScreen = Screen.SIGNUP }
-                        )
-                    }
-
-                    Screen.SIGNUP -> {
-                        SignUpScreen(
-                            onSignUpClick = { email, pw ->
-                                isLoading = true
-                                AuthRepository.signUpAndInitProfile( context, email.trim(), pw) { success, error ->
-                                    scope.launch {
-                                        isLoading = false
-                                        if (success) {
-                                            currentScreen = Screen.LOGIN
-                                        } else {
-                                            // 에러 표시
-                                            statusMessage = error ?: "회원가입 실패"
-                                        }
-                                    }
-                                }
-                                // currentScreen = Screen.LOGIN    // 회원가입 후 로그인 화면으로 이동
-                            },
-                            onBackToLogin = { currentScreen = Screen.LOGIN }
-                        )
-                    }
-
-                    Screen.LIST -> {
-                        // [목록 탭]
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            item {
-                                Text(
-                                    "상태: $statusMessage",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+            when (currentScreen) {
+                Screen.LOGIN -> LoginScreen(
+                    onLoginClick = { email, pw ->
+                        isLoading = true
+                        AuthRepository.loginAndSetFirebaseIdToken(context, email.trim(), pw) { success, error ->
+                            scope.launch {
+                                isLoading = false
+                                if (success) { currentScreen = Screen.LIST; refreshExpenses() }
+                                else { statusMessage = error ?: "로그인 실패" }
                             }
-                            item { Text("가계부 목록", style = MaterialTheme.typography.headlineSmall) }
+                        }
+                    },
+                    onSignUpClick = { currentScreen = Screen.SIGNUP }
+                )
+
+                Screen.SIGNUP -> SignUpScreen(
+                    onSignUpClick = { email, pw ->
+                        isLoading = true
+                        AuthRepository.signUpAndInitProfile(context, email.trim(), pw) { success, error ->
+                            scope.launch {
+                                isLoading = false
+                                if (success) currentScreen = Screen.LOGIN
+                                else statusMessage = error ?: "회원가입 실패"
+                            }
+                        }
+                    },
+                    onBackToLogin = { currentScreen = Screen.LOGIN }
+                )
+
+                Screen.LIST -> {
+                    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                        Text("가계부 목록", style = MaterialTheme.typography.headlineSmall)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(expenses) { expense ->
                                 ExpenseItemCard(
                                     expense = expense,
                                     onEditClick = {
-                                        editId = expense.id; date = expense.date; category =
-                                        expense.category
-                                        amount = expense.amount.toString(); paymentMethod =
-                                        expense.payment_method
+                                        editId = expense.id; date = expense.date; category = expense.category
+                                        amount = expense.amount.toString(); paymentMethod = expense.payment_method
                                         place = expense.place; memo = expense.memo
                                         currentScreen = Screen.ADD
                                     },
-                                    onDeleteClick = {
-                                        scope.launch {
-                                            ApiClient.api.deleteExpense(expense.id)
-                                            refreshExpenses()
-                                        }
-                                    }
+                                    onDeleteClick = { scope.launch { ApiClient.api.deleteExpense(expense.id); refreshExpenses() } }
                                 )
                             }
                         }
                     }
+                }
 
-                    Screen.ADD -> {
-                        // [추가/수정 화면]
+                Screen.ADD -> {
+                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                         ExpenseInputCard(
-                            editId = editId,
-                            date = date, onDateChange = { date = it },
+                            editId = editId, date = date, onDateChange = { date = it },
                             category = category, onCategoryChange = { category = it },
                             amount = amount, onAmountChange = { amount = it },
                             paymentMethod = paymentMethod, onPaymentChange = { paymentMethod = it },
@@ -244,53 +264,54 @@ fun HouseholdApp() {
                             onSaveClick = {
                                 scope.launch {
                                     try {
-                                        val req = ExpenseRequest(
-                                            date,
-                                            category,
-                                            amount.toIntOrNull() ?: 0,
-                                            paymentMethod,
-                                            place,
-                                            memo
-                                        )
+                                        val req = ExpenseRequest(date, category, amount.toIntOrNull() ?: 0, paymentMethod, place, memo)
                                         if (editId == null) ApiClient.api.createExpense(req)
                                         else editId?.let { ApiClient.api.updateExpense(it, req) }
-                                        clearForm()
-                                        refreshExpenses()
-                                        currentScreen = Screen.LIST // 저장 후 목록으로 자동 이동
-                                    } catch (e: Exception) {
-                                        statusMessage = "저장 실패"
-                                    }
+                                        clearForm(); refreshExpenses(); currentScreen = Screen.LIST
+                                    } catch (e: Exception) { statusMessage = "저장 실패" }
                                 }
                             },
-                            onResetClick = {
-                                clearForm()
-                                currentScreen = Screen.LIST // 취소 느낌으로 목록 이동
-                            }
+                            onResetClick = { clearForm(); currentScreen = Screen.LIST }
                         )
                     }
+                }
 
-                    Screen.ASK -> {
-                        // [분석 탭]
+                Screen.ASK -> {
+                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                         AskSectionCard(
-                            question = question,
-                            onQuestionChange = { question = it },
+                            question = question, onQuestionChange = { question = it },
                             answer = answer,
                             onAskClick = {
-                                if (question.isBlank()) return@AskSectionCard // 질문이 비었으면 무시
-
+                                if (question.isBlank()) return@AskSectionCard
                                 scope.launch {
                                     isLoading = true
-                                    Log.d(TAG, "AI 질문 전송: $question")
                                     try {
                                         val res = ApiClient.api.ask(AskRequest(question))
                                         Log.d(TAG, "AI 응답 수신 성공")
-                                        answer =
-                                            "${res.answer}\n\n참고: ${res.references.joinToString(", ")}"
+
+                                        val rSecText = res.retrieval_seconds?.toString().orEmpty()
+                                        val gSecText = res.generation_seconds?.toString().orEmpty()
+                                        val tSecText = res.total_seconds?.toString().orEmpty()
+
+                                        answer = buildString {
+                                            append(res.answer.orEmpty())
+                                            if (rSecText.isNotEmpty() || gSecText.isNotEmpty() || tSecText.isNotEmpty()) {
+                                                append("\n\n시간: r=")
+                                                append(rSecText.ifEmpty { "-" })
+                                                append(", g=")
+                                                append(gSecText.ifEmpty { "-" })
+                                                append(", t=")
+                                                append(tSecText.ifEmpty { "-" })
+                                            }
+                                            if (res.references.isNotEmpty()) {
+                                                append("\n\n참고: ")
+                                                append(res.references.joinToString(", "))
+                                            }
+                                        }
                                     } catch (e: Exception) {
                                         Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
-                                        // statusMessage = "질문 실패"
                                         answer = "죄송해요, 답변을 가져오지 못했어요."
-                                    }finally {
+                                    } finally {
                                         isLoading = false
                                     }
                                 }
@@ -298,7 +319,11 @@ fun HouseholdApp() {
                         )
                     }
                 }
+
+                Screen.BUDGET -> BudgetScreen(expenses = expenses)
+                Screen.CALENDAR -> CalendarScreen(expenses = expenses)
             }
+
             if (isLoading) {
                 LoadingOverlay()
             }
@@ -311,17 +336,19 @@ fun LoadingOverlay() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.23f)), // 배경을 어둡게
+            .background(Color.Black.copy(alpha = 0.23f)),
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator() // 빙글빙글 돌아가는 아이콘
+        CircularProgressIndicator()
     }
 }
 
 @Preview(showSystemUi = true, name = "앱 화면 (기기 형태)")
 @Composable
 fun FullAppPreview() {
-    MaterialTheme {
-        HouseholdApp()
+    HouseholdRAGTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            HouseholdApp()
+        }
     }
 }
