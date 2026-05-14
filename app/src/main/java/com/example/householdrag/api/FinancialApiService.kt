@@ -142,5 +142,5 @@ interface FinancialApiService {
 
     // 월별 자산 변화 기록 조회.
     @GET("assets/history")
-    suspend fun getAssetHistory(): Map<String, Any>
+    suspend fun getAssetHistory(): AssetHistoryResponse
 }

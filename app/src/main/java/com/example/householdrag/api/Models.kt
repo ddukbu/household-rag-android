@@ -21,3 +21,5 @@ typealias FixedIncomeItem = com.example.householdrag.model.FixedIncomeItem
 typealias FixedIncomeResponse = com.example.householdrag.model.FixedIncomeResponse
 typealias FixedExpenseItem = com.example.householdrag.model.FixedExpenseItem
 typealias FixedExpenseResponse = com.example.householdrag.model.FixedExpenseResponse
+typealias AssetHistoryResponse = com.example.householdrag.model.AssetHistoryResponse
+typealias AssetHistoryItem = com.example.householdrag.model.AssetHistoryItem
