@@ -67,17 +67,30 @@ fun ExpenseInputCard(
     onSaveExpense: (ExpenseRequest) -> Unit, // 지출 저장 콜백
     onSaveIncome: (IncomeIn) -> Unit        // 수입 저장 콜백
 ) {
+
+    val context = LocalContext.current
+    var isExpenseMode by remember { mutableStateOf(true) } // 지출/수입 모드 전환
+    var isFixed by remember { mutableStateOf(false) }     // 고정/변동 스위치
+
     // 드롭다운의 펼침 상태를 관리하는 변수들
     var categoryExpanded by remember { mutableStateOf(false) }
     var paymentExpanded by remember { mutableStateOf(false) }
 
     // 드롭다운 선택지 리스트
-    val categoryOptions = listOf("식비", "교통비", "쇼핑", "여가", "생활", "의료", "기타")
-    val paymentOptions = listOf("카드", "현금", "계좌이체", "기타")
+    val categoryOptions = if (isExpenseMode) {
+        listOf("식비", "교통비", "쇼핑", "여가", "생활", "의료", "월세", "보험료", "기타")
+    } else {
+        listOf("월급", "연금", "부수입", "용돈", "상여", "기타")
+    }
 
-    val context = LocalContext.current
-    var isExpenseMode by remember { mutableStateOf(true) } // 지출/수입 모드 전환
-    var isFixed by remember { mutableStateOf(false) }     // 고정/변동 스위치
+    val methodOptions = if (isExpenseMode) {
+        listOf("카드", "현금", "계좌이체", "기타")
+    } else {
+        listOf("현금", "계좌이체", "기타")
+    }
+
+    val methodLabel = if (isExpenseMode) "결제수단" else "입금방법"
+    val placeLabel = if (isExpenseMode) "사용처" else "입금처"
 
     // 날짜
     val calendar = Calendar.getInstance()
@@ -314,7 +327,7 @@ fun ExpenseInputCard(
                     value = paymentMethod,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("결제수단") },
+                    label = { Text(methodLabel) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paymentExpanded) },
                     modifier = Modifier
                         .menuAnchor()
@@ -330,7 +343,7 @@ fun ExpenseInputCard(
                     onDismissRequest = { paymentExpanded = false },
                     modifier = Modifier.background(Color.White)
                 ) {
-                    paymentOptions.forEach { option ->
+                    methodOptions.forEach { option ->
                         DropdownMenuItem(
                             text = { Text(option) },
                             onClick = { onPaymentChange(option); paymentExpanded = false }
@@ -340,7 +353,7 @@ fun ExpenseInputCard(
             }
 
             // 사용처 및 메모 입력
-            CommonTextField(value = place, onValueChange = onPlaceChange, label = "사용처")
+            CommonTextField(value = place, onValueChange = onPlaceChange, label = placeLabel)
             CommonTextField(value = memo, onValueChange = onMemoChange, label = "메모")
 
             Row(

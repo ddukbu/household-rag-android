@@ -46,7 +46,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 @Composable
-fun CalendarScreen(expenses: List<Expense>) {
+fun CalendarScreen(expenses: List<Expense>, onListClick: () -> Unit) {
     // 날짜 상태 관리
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
 
@@ -87,6 +87,29 @@ fun CalendarScreen(expenses: List<Expense>) {
             .background(Color.White)
             .padding(start = 10.dp, top = 0.dp, end = 10.dp, bottom = 10.dp )
     ) {
+//        Row(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(16.dp),
+//            verticalAlignment = Alignment.CenterVertically,
+//            horizontalArrangement = Arrangement.SpaceBetween
+//        ) {
+//            Text(
+//                text = "가계부 캘린더",
+//                style = MaterialTheme.typography.headlineSmall,
+//                fontWeight = FontWeight.Bold
+//            )
+//
+//            // 목록으로 돌아가는 아이콘 버튼
+//            IconButton(onClick = onListClick) {
+//                Icon(
+//                    imageVector = Icons.Default.List, // 리스트 아이콘
+//                    contentDescription = "목록 보기",
+//                    tint = LemonDeep // 우리 앱의 포인트 컬러!
+//                )
+//            }
+//        }
+
         // [상단] 캘린더 헤더 (연도/월 표시)
         MonthSelector(
             currentYM = currentYearMonth.toString(),

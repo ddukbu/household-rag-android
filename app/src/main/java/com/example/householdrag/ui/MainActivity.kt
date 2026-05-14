@@ -8,8 +8,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -51,6 +54,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.ApiClient
 import com.example.householdrag.api.AskRequest
+import com.example.householdrag.api.ChatHistoryDto
 import com.example.householdrag.api.Expense
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
@@ -85,7 +89,7 @@ fun HouseholdApp() {
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf(Screen.ASK) } // 기본은 LOGIN 테스트 시 변경
+    var currentScreen by remember { mutableStateOf(Screen.BUDGET) } // 기본은 LOGIN 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---
@@ -103,10 +107,15 @@ fun HouseholdApp() {
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
 
-    var currentYearMonth by remember { mutableStateOf(
-        java.time.YearMonth.now().toString() // 기본값: 현재 연-월 ("2026-05")
-    )}
+    var currentYearMonth by remember {
+        mutableStateOf(
+            java.time.YearMonth.now().toString() // 기본값: 현재 연-월 ("2026-05")
+        )
+    }
     var budgetData by remember { mutableStateOf<BudgetOut?>(null) }
+
+    var chatHistory by remember { mutableStateOf(listOf<ChatHistoryDto>()) }
+    var currentQuestion by remember { mutableStateOf("") }
 
     // --- 로직 함수 ---
     fun clearForm() {
@@ -114,8 +123,6 @@ fun HouseholdApp() {
             ""
     }
 
-    // todo 현제 날짜?
-    // 예산 데이터를 서버에서 가져오는 함수
     fun refreshBudget(yearMonth: String) {
         scope.launch {
             try {
@@ -136,6 +143,26 @@ fun HouseholdApp() {
             statusMessage = "불러오기 실패"
         } finally {
             isLoading = false
+        }
+    }
+
+    // 화면 진입 시 서버에서 대화 기록을 가져오는 로직 추가
+    fun refreshChatHistory() {
+        scope.launch {
+            try {
+                // GET /chat-history (서버 API 명세에 맞춰 호출)
+                val history = ApiClient.api.getChatHistory()
+                chatHistory = history
+            } catch (e: Exception) {
+                Log.e("Chat", "대화 기록 로드 실패", e)
+            }
+        }
+    }
+
+    // ASK 화면으로 전환될 때 기록 불러오기
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == Screen.ASK) {
+            refreshChatHistory()
         }
     }
 
@@ -262,10 +289,30 @@ fun HouseholdApp() {
                 )
 
                 Screen.LIST -> {
-                    Column(modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)) {
-                        Text("가계부 목록", style = MaterialTheme.typography.headlineSmall)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        // Text("가계부 목록", style = MaterialTheme.typography.headlineSmall)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("가계부 목록", style = MaterialTheme.typography.headlineSmall)
+
+                            // 캘린더로 전환하는 아이콘 버튼
+                            IconButton(onClick = { currentScreen = Screen.CALENDAR }) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange, // 캘린더 아이콘
+                                    contentDescription = "캘린더 보기",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(12.dp))
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(expenses) { expense ->
@@ -293,9 +340,11 @@ fun HouseholdApp() {
                 }
 
                 Screen.ADD -> {
-                    Box(modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
                         ExpenseInputCard(
                             editId = editId, date = date, onDateChange = { date = it },
                             category = category, onCategoryChange = { category = it },
@@ -305,14 +354,19 @@ fun HouseholdApp() {
                             memo = memo, onMemoChange = { memo = it },
                             onResetClick = { clearForm(); currentScreen = Screen.LIST },
 
-                            // 지출 저장 로직 (ExpenseRequest 처리)
+                            // 지출 저장 로직
                             onSaveExpense = { expenseReq ->
                                 scope.launch {
                                     try {
                                         if (editId == null) {
                                             ApiClient.api.createExpense(expenseReq) // 신규 지출
                                         } else {
-                                            editId?.let { ApiClient.api.updateExpense(it, expenseReq) } // 지출 수정
+                                            editId?.let {
+                                                ApiClient.api.updateExpense(
+                                                    it,
+                                                    expenseReq
+                                                )
+                                            } // 지출 수정
                                         }
                                         clearForm()
                                         refreshExpenses()
@@ -323,7 +377,7 @@ fun HouseholdApp() {
                                 }
                             },
 
-                            // 수입 저장 로직 (IncomeIn 처리)
+                            // 수입 저장 로직
                             onSaveIncome = { incomeReq ->
                                 scope.launch {
                                     try {
@@ -331,7 +385,12 @@ fun HouseholdApp() {
                                         if (editId == null) {
                                             ApiClient.api.createIncome(incomeReq) // 신규 수입
                                         } else {
-                                            editId?.let { ApiClient.api.updateIncome(it, incomeReq) } // 수입 수정
+                                            editId?.let {
+                                                ApiClient.api.updateIncome(
+                                                    it,
+                                                    incomeReq
+                                                )
+                                            } // 수입 수정
                                         }
                                         clearForm()
                                         refreshExpenses() // 목록 새로고침 (수입도 포함되게 API 확인 필요!)
@@ -346,50 +405,48 @@ fun HouseholdApp() {
                 }
 
                 Screen.ASK -> {
-                    Box(modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)) {
-                        AskSectionCard(
-                            question = question, onQuestionChange = { question = it },
-                            answer = answer,
-                            onAskClick = {
-                                if (question.isBlank()) return@AskSectionCard
-                                scope.launch {
-                                    isLoading = true
-                                    try {
-                                        val res = ApiClient.api.ask(AskRequest(question))
-                                        Log.d(TAG, "AI 응답 수신 성공")
+                    AskSectionCard(
+                        chatHistory = chatHistory, // 서버에서 가져온 진짜 데이터!
+                        currentQuestion = currentQuestion,
+                        onQuestionChange = { currentQuestion = it },
+                        onAskClick = {
+                            if (question.isBlank()) return@AskSectionCard
+                            scope.launch {
+                                isLoading = true
+                                try {
+                                    val res = ApiClient.api.ask(AskRequest(question))
+                                    Log.d(TAG, "AI 응답 수신 성공")
 
-                                        val rSecText = res.retrieval_seconds?.toString().orEmpty()
-                                        val gSecText = res.generation_seconds?.toString().orEmpty()
-                                        val tSecText = res.total_seconds?.toString().orEmpty()
+                                    val rSecText = res.retrieval_seconds?.toString().orEmpty()
+                                    val gSecText = res.generation_seconds?.toString().orEmpty()
+                                    val tSecText = res.total_seconds?.toString().orEmpty()
 
-                                        answer = buildString {
-                                            append(res.answer.orEmpty())
-                                            if (rSecText.isNotEmpty() || gSecText.isNotEmpty() || tSecText.isNotEmpty()) {
-                                                append("\n\n시간: r=")
-                                                append(rSecText.ifEmpty { "-" })
-                                                append(", g=")
-                                                append(gSecText.ifEmpty { "-" })
-                                                append(", t=")
-                                                append(tSecText.ifEmpty { "-" })
-                                            }
-                                            if (res.references.isNotEmpty()) {
-                                                append("\n\n참고: ")
-                                                append(res.references.joinToString(", "))
-                                            }
+                                    answer = buildString {
+                                        append(res.answer.orEmpty())
+                                        if (rSecText.isNotEmpty() || gSecText.isNotEmpty() || tSecText.isNotEmpty()) {
+                                            append("\n\n시간: r=")
+                                            append(rSecText.ifEmpty { "-" })
+                                            append(", g=")
+                                            append(gSecText.ifEmpty { "-" })
+                                            append(", t=")
+                                            append(tSecText.ifEmpty { "-" })
                                         }
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
-                                        answer = "죄송해요, 답변을 가져오지 못했어요."
-                                    } finally {
-                                        isLoading = false
+                                        if (res.references.isNotEmpty()) {
+                                            append("\n\n참고: ")
+                                            append(res.references.joinToString(", "))
+                                        }
                                     }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
+                                    answer = "죄송해요, 답변을 가져오지 못했어요."
+                                } finally {
+                                    isLoading = false
                                 }
                             }
-                        )
-                    }
+                        }
+                    )
                 }
+
 
                 Screen.BUDGET -> {
                     LaunchedEffect(currentYearMonth) {
@@ -407,7 +464,9 @@ fun HouseholdApp() {
                     }
                 }
 
-                Screen.CALENDAR -> CalendarScreen(expenses = expenses)
+                Screen.CALENDAR -> CalendarScreen(
+                    expenses = expenses,
+                    onListClick = { currentScreen = Screen.LIST })
             }
 
             if (isLoading) {
