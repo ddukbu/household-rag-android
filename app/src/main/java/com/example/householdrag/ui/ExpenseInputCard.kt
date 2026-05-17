@@ -46,7 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.householdrag.api.ExpenseRequest
+import com.example.householdrag.api.ExpenseIn
 import com.example.householdrag.api.IncomeIn
 import com.example.householdrag.ui.theme.CommonTextField
 import com.example.householdrag.ui.theme.LemonDeep
@@ -64,7 +64,7 @@ fun ExpenseInputCard(
     memo: String, onMemoChange: (String) -> Unit,
     //onSaveClick: () -> Unit,
     onResetClick: () -> Unit,
-    onSaveExpense: (ExpenseRequest) -> Unit, // 지출 저장 콜백
+    onSaveExpense: (ExpenseIn) -> Unit, // 지출 저장 콜백
     onSaveIncome: (IncomeIn) -> Unit        // 수입 저장 콜백
 ) {
 
@@ -368,33 +368,33 @@ fun ExpenseInputCard(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // TODO: 지출은 Expense, ExpenseIn, ExpenseRequest 중에 뭐 사용 해야하는 지 모르겠음
-                // TODO: 마찬가지로 수익은 Income, IncomeIn 은 뭐 사용함?
                 Button(
                     onClick = {
                         val amountInt = amount.toIntOrNull() ?: 0
                         if (isExpenseMode) {
-                            ExpenseRequest(
+                            val expenseData = ExpenseIn(
                                 date = date,
                                 time = selectedTime,
                                 category = category,
                                 amount = amountInt,
-                                payment_method = paymentMethod, // 지출은 결제수단
-                                place = place,                  // 지출은 사용처
+                                payment_method = paymentMethod,
+                                place = place,
                                 memo = memo,
                                 is_fixed_expense = isFixed
                             )
+                            onSaveExpense(expenseData)
                         } else {
-                            IncomeIn(
+                            val incomeData = IncomeIn(
                                 date = date,
                                 time = selectedTime,
                                 is_fixed_income = isFixed,
                                 category = category,
                                 amount = amountInt,
-                                deposit_method = paymentMethod, // 수입 모델에선 deposit_method로 매핑
-                                deposit_source = place,         // 수입 모델에선 deposit_source로 매핑
+                                deposit_method = paymentMethod,
+                                deposit_source = place,
                                 memo = memo
                             )
+                            onSaveIncome(incomeData)
                         }
                     },
                     shape = RoundedCornerShape(8.dp)

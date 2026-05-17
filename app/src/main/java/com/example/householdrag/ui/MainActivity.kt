@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
@@ -24,6 +26,8 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -34,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +55,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.ApiClient
@@ -58,7 +65,9 @@ import com.example.householdrag.api.ChatHistoryDto
 import com.example.householdrag.api.Expense
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
+import com.example.householdrag.model.AssetOut
 import com.example.householdrag.model.BudgetOut
+import com.example.householdrag.model.InitialAssetRequest
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
 
@@ -89,13 +98,19 @@ fun HouseholdApp() {
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf(Screen.BUDGET) } // 기본은 LOGIN 테스트 시 변경
+    var currentScreen by remember { mutableStateOf(Screen.LOGIN) } // 기본은 LOGIN 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---
     var expenses by remember { mutableStateOf(listOf<Expense>()) }
     var statusMessage by remember { mutableStateOf("준비됨") }
     var editId by remember { mutableStateOf<String?>(null) }
+
+    // 자산 상태
+    var assetData by remember { mutableStateOf<AssetOut?>(null) }
+    // 초기 자산 설정용 팝업 상태 변수
+    var showAssetDialog by remember { mutableStateOf(false) }
+    var inputInitialAsset by remember { mutableStateOf("") }
 
     var date by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
@@ -113,6 +128,8 @@ fun HouseholdApp() {
         )
     }
     var budgetData by remember { mutableStateOf<BudgetOut?>(null) }
+    var totalFixedIncome by remember { mutableStateOf(0) }
+    var totalFixedExpense by remember { mutableStateOf(0) }
 
     var chatHistory by remember { mutableStateOf(listOf<ChatHistoryDto>()) }
     var currentQuestion by remember { mutableStateOf("") }
@@ -126,8 +143,14 @@ fun HouseholdApp() {
     fun refreshBudget(yearMonth: String) {
         scope.launch {
             try {
-                val response = ApiClient.api.getBudget(yearMonth)
-                budgetData = response
+                val budgetResponse = ApiClient.api.getBudget(yearMonth)
+                budgetData = budgetResponse
+
+                val fixedIncomes = ApiClient.api.getFixedIncomes(yearMonth)
+                totalFixedIncome = fixedIncomes.sumOf { it.amount }
+
+                val fixedExpenses = ApiClient.api.getFixedExpenses(yearMonth)
+                totalFixedExpense = fixedExpenses.sumOf { it.amount }
             } catch (e: Exception) {
                 statusMessage = "예산 데이터를 가져오지 못했습니다."
             }
@@ -138,11 +161,41 @@ fun HouseholdApp() {
         isLoading = true
         try {
             expenses = ApiClient.api.getExpenses()
+//            expenses = listOf(
+//                Expense(
+//                    id = "test_id_1",
+//                    date = "2026-05-18",
+//                    time = "02:00",
+//                    is_fixed_expense = false,
+//                    category = "식비",
+//                    amount = 10000,
+//                    payment_method = "카드",
+//                    place = "연어 맛집",
+//                    memo = "방금 만든 것"
+//                )
+//            )
+            Log.d("P_TEST", "서버에서 받은 리스트 개수: ${expenses.size}")
+            Log.d("P_TEST", "데이터 샘플: $expenses")
             statusMessage = "목록 업데이트 성공"
         } catch (e: Exception) {
+            Log.e("P_TEST", "불러오기 실패 에러 메시지: ${e.message}", e)
             statusMessage = "불러오기 실패"
         } finally {
             isLoading = false
+        }
+    }
+
+    // 자산 정보를 가져오는 함수
+    fun refreshAssets() {
+        scope.launch {
+            try {
+                val response = ApiClient.api.getAsset()
+                assetData = response
+                Log.d("ASSET", "자산 데이터 로드 성공: ${response.current_asset}")
+            } catch (e: Exception) {
+                Log.e("ASSET", "자산 데이터를 가져오지 못했습니다: ${e.message}")
+                statusMessage = "자산 데이터 업데이트 실패"
+            }
         }
     }
 
@@ -150,7 +203,6 @@ fun HouseholdApp() {
     fun refreshChatHistory() {
         scope.launch {
             try {
-                // GET /chat-history (서버 API 명세에 맞춰 호출)
                 val history = ApiClient.api.getChatHistory()
                 chatHistory = history
             } catch (e: Exception) {
@@ -166,13 +218,20 @@ fun HouseholdApp() {
         }
     }
 
-    LaunchedEffect(Unit) { refreshExpenses() }
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == Screen.LIST) {
+            refreshExpenses()
+            refreshAssets()
+        }
+    }
+
+    // LaunchedEffect(Unit) { refreshExpenses() }
 
     Scaffold(
         topBar = {
             if (currentScreen != Screen.LOGIN && currentScreen != Screen.SIGNUP) {
                 TopAppBar(
-                    title = { Text("HouseHold RAG") },
+                    title = { Text("MoneyMate") },
                     actions = {
                         TextButton(onClick = {
                             AuthTokenStore.clear(context)
@@ -294,19 +353,45 @@ fun HouseholdApp() {
                             .fillMaxSize()
                             .padding(16.dp)
                     ) {
-                        // Text("가계부 목록", style = MaterialTheme.typography.headlineSmall)
-
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
+                            verticalAlignment = Alignment.Bottom,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("가계부 목록", style = MaterialTheme.typography.headlineSmall)
+                            // Text("가계부 목록", style = MaterialTheme.typography.headlineSmall)
+
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        // 현재 자산액을 모르면 빈칸, 알면 기본값으로 채워주기
+                                        inputInitialAsset =
+                                            (assetData?.initial_asset ?: 0).toString()
+                                        showAssetDialog = true
+                                    }) {
+                                Text(
+                                    text = "현재 총 자산",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color.Gray
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "${
+                                        String.format(
+                                            "%,d",
+                                            assetData?.current_asset ?: 0
+                                        )
+                                    }원",
+                                    style = MaterialTheme.typography.headlineLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                            }
 
                             // 캘린더로 전환하는 아이콘 버튼
                             IconButton(onClick = { currentScreen = Screen.CALENDAR }) {
                                 Icon(
-                                    imageVector = Icons.Default.DateRange, // 캘린더 아이콘
+                                    imageVector = Icons.Default.DateRange,
                                     contentDescription = "캘린더 보기",
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -314,7 +399,13 @@ fun HouseholdApp() {
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                        //AssetSummaryCard(asset = assetData)
+
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
                             items(expenses) { expense ->
                                 ExpenseItemCard(
                                     expense = expense,
@@ -328,9 +419,9 @@ fun HouseholdApp() {
                                     },
                                     onDeleteClick = {
                                         scope.launch {
-                                            ApiClient.api.deleteExpense(
-                                                expense.id
-                                            ); refreshExpenses()
+                                            ApiClient.api.deleteExpense(expense.id)
+                                            refreshExpenses()
+                                            refreshAssets()
                                         }
                                     }
                                 )
@@ -366,10 +457,11 @@ fun HouseholdApp() {
                                                     it,
                                                     expenseReq
                                                 )
-                                            } // 지출 수정
+                                            }
                                         }
                                         clearForm()
                                         refreshExpenses()
+                                        refreshAssets()
                                         currentScreen = Screen.LIST
                                     } catch (e: Exception) {
                                         statusMessage = "지출 저장 실패"
@@ -381,19 +473,19 @@ fun HouseholdApp() {
                             onSaveIncome = { incomeReq ->
                                 scope.launch {
                                     try {
-                                        // 수입은 IncomeApiService를 사용해야 합니다
                                         if (editId == null) {
-                                            ApiClient.api.createIncome(incomeReq) // 신규 수입
+                                            ApiClient.api.createIncome(incomeReq)
                                         } else {
                                             editId?.let {
                                                 ApiClient.api.updateIncome(
                                                     it,
                                                     incomeReq
                                                 )
-                                            } // 수입 수정
+                                            }
                                         }
                                         clearForm()
-                                        refreshExpenses() // 목록 새로고침 (수입도 포함되게 API 확인 필요!)
+                                        refreshExpenses()
+                                        refreshAssets()
                                         currentScreen = Screen.LIST
                                     } catch (e: Exception) {
                                         statusMessage = "수입 저장 실패"
@@ -406,7 +498,7 @@ fun HouseholdApp() {
 
                 Screen.ASK -> {
                     AskSectionCard(
-                        chatHistory = chatHistory, // 서버에서 가져온 진짜 데이터!
+                        chatHistory = chatHistory,
                         currentQuestion = currentQuestion,
                         onQuestionChange = { currentQuestion = it },
                         onAskClick = {
@@ -436,6 +528,8 @@ fun HouseholdApp() {
                                             append(res.references.joinToString(", "))
                                         }
                                     }
+                                    currentQuestion = ""
+                                    refreshChatHistory()
                                 } catch (e: Exception) {
                                     Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
                                     answer = "죄송해요, 답변을 가져오지 못했어요."
@@ -457,6 +551,8 @@ fun HouseholdApp() {
                         BudgetScreen(
                             currentYM = currentYearMonth,
                             budgetData = budgetData,
+                            fixedIncomeTotal = totalFixedIncome,
+                            fixedExpenseTotal = totalFixedExpense,
                             onMonthChange = { newYM ->
                                 currentYearMonth = newYM // 화살표 클릭 시 상태 업데이트
                             }
@@ -467,6 +563,57 @@ fun HouseholdApp() {
                 Screen.CALENDAR -> CalendarScreen(
                     expenses = expenses,
                     onListClick = { currentScreen = Screen.LIST })
+            }
+
+            if (showAssetDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAssetDialog = false },
+                    title = { Text("초기 자산 설정", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column {
+                            Text(
+                                "앱을 시작할 때 가졌던 기준 자산을 입력해 주세요.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = inputInitialAsset,
+                                onValueChange = { inputInitialAsset = it },
+                                label = { Text("초기 자산 금액") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val assetAmount = inputInitialAsset.toIntOrNull() ?: 0
+                                scope.launch {
+                                    try {
+                                        ApiClient.api.updateInitialAsset(
+                                            InitialAssetRequest(
+                                                initial_asset = assetAmount
+                                            )
+                                        )
+                                        showAssetDialog = false
+                                        refreshAssets()
+                                    } catch (e: Exception) {
+                                        Log.e("ASSET_DIALOG", "초기자산 업데이트 실패: ${e.message}")
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("저장")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAssetDialog = false }) {
+                            Text("취소", color = Color.Gray)
+                        }
+                    }
+                )
             }
 
             if (isLoading) {

@@ -32,12 +32,13 @@ import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import com.example.householdrag.ui.theme.MonthSelector
 import com.example.householdrag.ui.theme.formatAmount
 
-// TODO: BudgetOut, BudgetDraftOut 이거 뭔 차이임? 뭐 사용?
 
 @Composable
 fun BudgetScreen(
     currentYM: String,
     budgetData: BudgetOut?,
+    fixedIncomeTotal: Int,
+    fixedExpenseTotal: Int,
     onMonthChange: (String) -> Unit
 ) {
     // 서버 데이터가 오기 전에는 로딩 UI를 보여주거나 빈 화면
@@ -56,7 +57,7 @@ fun BudgetScreen(
             .fillMaxSize()
             .background(Color.White)
             //.padding(16.dp)
-            .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 16.dp )
+            .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 16.dp)
     ) {
         MonthSelector(currentYM = currentYM, onMonthChange = onMonthChange)
 
@@ -72,7 +73,9 @@ fun BudgetScreen(
         BudgetSummaryCard(
             totalBudget = budgetData.total_budget,
             saving = budgetData.saving,
-            state = budgetData.state
+            state = budgetData.state,
+            fixedIncome = fixedIncomeTotal,
+            fixedExpense = fixedExpenseTotal
         )
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -85,30 +88,33 @@ fun BudgetScreen(
 
         budgetData.budget_details.forEach { (category, limit) ->
             val remaining = budgetData.remaining_budget_details[category] ?: 0
-            val spent = limit - remaining // 사용 금액 계산 [cite: 138]
+            val spent = limit - remaining
 
             BudgetProgressItem(
                 category = category,
                 budget = limit,
                 spent = spent,
                 remaining = remaining,
-                onClick = { /* TODO: 클릭 시 수정 API 호출 */ }
-            )
+                onClick = { /* TODO: 클릭 시 수정 API 호출 */ })
         }
 
     }
 }
 
 @Composable
-fun BudgetSummaryCard(totalBudget: Int, saving: Int, state: String) {
+fun BudgetSummaryCard(
+    totalBudget: Int,
+    saving: Int,
+    state: String,
+    fixedIncome: Int,
+    fixedExpense: Int
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
+        modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(
             containerColor = if (state == "good") MaterialTheme.colorScheme.primary else Color(
                 0xFFFFCDD2
             )
-        ),
-        shape = RoundedCornerShape(16.dp)
+        ), shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text("사용 가능한 여유 자금", style = MaterialTheme.typography.labelMedium)
@@ -122,7 +128,6 @@ fun BudgetSummaryCard(totalBudget: Int, saving: Int, state: String) {
                 color = Color.Black.copy(alpha = 0.1f)
             )
 
-            // TODO: 고정수익, 고정지출 나타내기 formatAmount하기
             Column {
                 Row(
                     modifier = Modifier
@@ -131,7 +136,7 @@ fun BudgetSummaryCard(totalBudget: Int, saving: Int, state: String) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("고정 수익", style = MaterialTheme.typography.bodyMedium)
-                    Text("+    원", fontWeight = FontWeight.Bold)
+                    Text("+ ${formatAmount(fixedIncome)}원", fontWeight = FontWeight.Bold)
                 }
                 Row(
                     modifier = Modifier
@@ -140,7 +145,7 @@ fun BudgetSummaryCard(totalBudget: Int, saving: Int, state: String) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("고정 지출", style = MaterialTheme.typography.bodyMedium)
-                    Text("-    원", fontWeight = FontWeight.Bold)
+                    Text("- ${formatAmount(fixedExpense)}원", fontWeight = FontWeight.Bold)
                 }
 
             }
@@ -150,22 +155,16 @@ fun BudgetSummaryCard(totalBudget: Int, saving: Int, state: String) {
 
 @Composable
 fun BudgetProgressItem(
-    category: String,
-    budget: Int,
-    spent: Int,
-    remaining: Int,
-    onClick: () -> Unit // 클릭 콜백 추가
+    category: String, budget: Int, spent: Int, remaining: Int, onClick: () -> Unit // 클릭 콜백 추가
 ) {
     val progressValue = if (budget > 0) spent.toFloat() / budget.toFloat() else 0f
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() } // [할일] 할당된 카테고리 누르면 변경 가능 [cite: 232, 234]
-            .padding(vertical = 8.dp)
-    ) {
+            .clickable { onClick() }
+            .padding(vertical = 8.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(category, style = MaterialTheme.typography.bodyMedium)
             Text(
@@ -194,12 +193,13 @@ fun BudgetProgressItem(
 fun BudgetScreenPreview() {
     HouseholdRAGTheme {
         Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+            modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background
         ) {
             BudgetScreen(
                 currentYM = "2026-05",
                 onMonthChange = { },
+                fixedIncomeTotal = 1500000,
+                fixedExpenseTotal = 600000,
                 budgetData = BudgetOut(
                     id = "preview",
                     year_month = "2026-05",
