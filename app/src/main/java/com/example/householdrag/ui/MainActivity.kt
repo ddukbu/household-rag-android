@@ -63,10 +63,14 @@ import com.example.householdrag.api.ApiClient
 import com.example.householdrag.api.AskRequest
 import com.example.householdrag.api.ChatHistoryDto
 import com.example.householdrag.api.Expense
+import com.example.householdrag.api.FixedExpenseItem
+import com.example.householdrag.api.FixedIncomeItem
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
 import com.example.householdrag.model.AssetOut
 import com.example.householdrag.model.BudgetOut
+import com.example.householdrag.model.FixedExpenseBudget
+import com.example.householdrag.model.FixedIncomeBudget
 import com.example.householdrag.model.InitialAssetRequest
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
@@ -130,7 +134,8 @@ fun HouseholdApp() {
     var budgetData by remember { mutableStateOf<BudgetOut?>(null) }
     var totalFixedIncome by remember { mutableStateOf(0) }
     var totalFixedExpense by remember { mutableStateOf(0) }
-
+    var fixedIncomeList by remember { mutableStateOf(listOf<FixedIncomeItem>()) }
+    var fixedExpenseList by remember { mutableStateOf(listOf<FixedExpenseItem>()) }
     var chatHistory by remember { mutableStateOf(listOf<ChatHistoryDto>()) }
     var currentQuestion by remember { mutableStateOf("") }
 
@@ -553,6 +558,85 @@ fun HouseholdApp() {
                             budgetData = budgetData,
                             fixedIncomeTotal = totalFixedIncome,
                             fixedExpenseTotal = totalFixedExpense,
+                            fixedIncomeList = fixedIncomeList,
+                            fixedExpenseList = fixedExpenseList,
+
+                            onIncomeRowClick = {
+                                scope.launch {
+                                    try {
+                                        val fixedIncomes =
+                                            ApiClient.api.getFixedIncomes(currentYearMonth)
+                                        fixedIncomeList = fixedIncomes
+                                        totalFixedIncome = fixedIncomes.sumOf { it.amount }
+                                    } catch (e: Exception) {
+                                        Log.e("BUDGET_CLICK", "고정 수입 목록 실시간 동기화 실패")
+                                    }
+                                }
+                            },
+
+                            onExpenseRowClick = {
+                                scope.launch {
+                                    try {
+                                        val fixedExpenses =
+                                            ApiClient.api.getFixedExpenses(currentYearMonth)
+                                        fixedExpenseList = fixedExpenses
+                                        totalFixedExpense = fixedExpenses.sumOf { it.amount }
+                                    } catch (e: Exception) {
+                                        Log.e("BUDGET_CLICK", "고정 지출 목록 실시간 동기화 실패")
+                                    }
+                                }
+                            },
+
+                            onAddFixedIncome = { category, amount, memo ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+                                        ApiClient.api.createFixedIncome(
+                                            yearMonth = currentYearMonth,
+                                            request = FixedIncomeBudget(
+                                                category = category,
+                                                amount = amount,
+                                                memo = memo
+                                            )
+                                        )
+                                        val fixedIncomes =
+                                            ApiClient.api.getFixedIncomes(currentYearMonth)
+                                        fixedIncomeList = fixedIncomes
+                                        totalFixedIncome = fixedIncomes.sumOf { it.amount }
+                                        refreshBudget(currentYearMonth)
+                                    } catch (e: Exception) {
+                                        Log.e("FIXED_INC_ADD", "고정 수입 추가 실패: ${e.message}")
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            },
+
+                            onAddFixedExpense = { category, amount, memo ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+                                        ApiClient.api.createFixedExpense(
+                                            yearMonth = currentYearMonth,
+                                            request = FixedExpenseBudget(
+                                                category = category,
+                                                amount = amount,
+                                                memo = memo
+                                            )
+                                        )
+                                        val fixedExpenses =
+                                            ApiClient.api.getFixedExpenses(currentYearMonth)
+                                        fixedExpenseList = fixedExpenses
+                                        totalFixedExpense = fixedExpenses.sumOf { it.amount }
+                                        refreshBudget(currentYearMonth)
+                                    } catch (e: Exception) {
+                                        Log.e("FIXED_EXP_ADD", "고정 지출 추가 실패: ${e.message}")
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            },
+
                             onMonthChange = { newYM ->
                                 currentYearMonth = newYM // 화살표 클릭 시 상태 업데이트
                             }
