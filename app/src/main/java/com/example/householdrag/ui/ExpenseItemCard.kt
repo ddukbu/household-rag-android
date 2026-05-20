@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -20,72 +22,102 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.Expense
+import com.example.householdrag.model.Income
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import com.example.householdrag.ui.theme.formatAmount
 
 @Composable
 fun ExpenseItemCard(
-    expense: Expense,
-    onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    item: Any, onEditClick: () -> Unit, onDeleteClick: () -> Unit
 ) {
+    val date: String
+    val time: String
+    val title: String
+    val amount: Int
+    val isIncome = item is Income
+    val subText: String // 카테고리, 결제수단(입금방법), 메모
+
+    if (item is Expense) {
+        date = item.date
+        time = item.time
+        title = item.place  // 사용처
+        amount = item.amount
+        subText =
+            "${item.category} · ${item.payment_method}${if (item.memo.isNotBlank()) " · ${item.memo}" else ""}"
+    } else if (item is Income) {
+        date = item.date
+        time = item.time
+        title = item.category   // 카테고리
+        amount = item.amount
+        subText =
+            //"${item.deposit_method ?: "미지정"} · 입금처: ${item.deposit_source ?: "미지정"}${if (!item.memo.isNullOrBlank()) " · ${item.memo}" else ""}"
+            "${item.deposit_source ?: "미지정"}${if (!item.memo.isNullOrBlank()) "· ${item.deposit_method ?: "미지정"} · ${item.memo}" else "" }"
+
+        } else {
+        return // 알 수 없는 타입 방어 로직
+    }
+
+    val amountSign = if (isIncome) "+" else "-"
+    val amountColor = if (isIncome) Color(0xFF2E7D32) else Color.Black
+    val cardBackground = if (isIncome) Color(0xFFF9FBF9) else MaterialTheme.colorScheme.surface
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = cardBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row() {
+            // 날짜와 시간
+            Row {
                 Text(
-                    text = "${expense.date} ${expense.time}",
+                    text = "$date $time",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
 
-            // 사용처와 금액
+            // 사용처(입금 종류)와 금액
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = expense.place,
+                    text = title,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "${formatAmount(expense.amount)}원",
+                    text = "$amountSign ${formatAmount(amount)}원",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.Black
                 )
             }
 
-            // 수정 / 삭제 버튼
+            // 카테고리 / 상세 설명, 수정 삭제 버튼
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 0.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                //verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // 카테고리 메모 등
                 Text(
-                    text = "${expense.category} · ${expense.payment_method}" +
-                            "${if (expense.memo.isNotBlank()) " · ${expense.memo}" else ""}",
+                    text = subText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = Color.Gray,
+                    modifier = Modifier.weight(1f)
                 )
                 // 버튼들
                 Row {
                     TextButton(
-                        onClick = onEditClick,
-                        contentPadding = PaddingValues(horizontal = 8.dp)
+                        onClick = onEditClick, contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
                         Text(
                             "수정",
@@ -102,44 +134,6 @@ fun ExpenseItemCard(
                     }
                 }
             }
-
-//            // 카테고리, 메모 등
-//            Text(
-//                text = "${expense.category} · ${expense.payment_method}" +
-//                        "${if (expense.memo.isNotBlank()) " · ${expense.memo}" else ""}",
-//                style = MaterialTheme.typography.bodySmall,
-//                color = Color.Gray
-//            )
-
-//            //수정/삭제 버튼
-//            Row(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .padding(top = 0.dp),
-//                horizontalArrangement = Arrangement.End,
-//                verticalAlignment = Alignment.CenterVertically
-//            ) {
-//                // 버튼들
-//                Row {
-//                    TextButton(
-//                        onClick = onEditClick,
-//                        contentPadding = PaddingValues(horizontal = 8.dp)
-//                    ) {
-//                        Text(
-//                            "수정",
-//                            style = MaterialTheme.typography.labelLarge,
-//                            color = MaterialTheme.colorScheme.onPrimary
-//                        )
-//                    }
-//                    TextButton(
-//                        onClick = onDeleteClick,
-//                        contentPadding = PaddingValues(horizontal = 8.dp),
-//                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFE53935))
-//                    ) {
-//                        Text("삭제", style = MaterialTheme.typography.labelLarge)
-//                    }
-//                }
-//            }
         }
     }
 }
@@ -158,15 +152,28 @@ fun ExpenseItemCardPreview() {
             category = "식비",
             payment_method = "카카오페이",
             time = "12:00",
-            is_fixed_expense = true
+            is_fixed_expense = false
+        )
+        val demoIncome = Income(
+            id = "2",
+            category = "월급",
+            amount = 2500000,
+            date = "2026-04-25",
+            memo = "기분 좋은 날",
+            deposit_method = "계좌이체",
+            deposit_source = "주식회사 테스트",
+            time = "10:00",
+            is_fixed_income = false
         )
 
         Column(modifier = Modifier.padding(16.dp)) {
-            ExpenseItemCard(
-                expense = demoExpense,
-                onEditClick = { /* 미리보기라 작동 안함 */ },
-                onDeleteClick = { /* 미리보기라 작동 안함 */ }
-            )
+            Text("1. 지출 예시 피드", fontWeight = FontWeight.Bold)
+            ExpenseItemCard(item = demoExpense, onEditClick = {}, onDeleteClick = {})
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("2. 수입 예시 피드 (혜림 님 통합 버전 폼)", fontWeight = FontWeight.Bold)
+            ExpenseItemCard(item = demoIncome, onEditClick = {}, onDeleteClick = {})
         }
     }
 }

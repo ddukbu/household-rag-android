@@ -10,16 +10,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -55,6 +62,10 @@ fun BudgetScreen(
     onExpenseRowClick: () -> Unit,
     onAddFixedIncome: (String, Int, String) -> Unit, // 고정 수입 추가 콜백
     onAddFixedExpense: (String, Int, String) -> Unit,// 고정 지출 추가 콜백
+    onUpdateFixedIncome: (String, String, Int, String) -> Unit, // id, category, amount, memo
+    onDeleteFixedIncome: (String) -> Unit,
+    onUpdateFixedExpense: (String, String, Int, String) -> Unit, // id, category, amount, memo
+    onDeleteFixedExpense: (String) -> Unit,
     onMonthChange: (String) -> Unit
 ) {
     // 서버 데이터가 오기 전에는 로딩 UI를 보여주거나 빈 화면
@@ -124,40 +135,80 @@ fun BudgetScreen(
 
     // 고정 수익 리스트
     if (showIncomeDialog) {
+        var editingId by remember { mutableStateOf<String?>(null) }
         var inputCategory by remember { mutableStateOf("") }
         var inputAmount by remember { mutableStateOf("") }
         var inputMemo by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showIncomeDialog = false },
-            title = { Text("고정 수익 내역 관리", fontWeight = FontWeight.Bold) },
-            text = {
+            title = {
+                Text(
+                    if (editingId == null) "고정 수익 내역 관리" else "고정 수익 항목 수정",
+                    fontWeight = FontWeight.Bold
+                )
+            }, text = {
                 Column {
-                    Text(
-                        "이번 달 등록된 고정 수익 목록입니다.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    if (editingId == null) {
+                        Text(
+                            "이번 달 등록된 고정 수익 목록입니다.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    // 목록 표시 구역
-                    LazyColumn(modifier = Modifier.height(150.dp)) {
-                        items(fixedIncomeList) { item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(item.category, fontWeight = FontWeight.Medium)
-                                Text("+ ${formatAmount(item.amount)}원", color = Color(0xFF4CAF50))
+                        // 목록 표시 구역
+                        LazyColumn(modifier = Modifier.height(130.dp)) {
+                            items(fixedIncomeList) { item ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(item.category, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "+ ${formatAmount(item.amount)}원",
+                                            color = Color(0xFF4CAF50),
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+
+                                    IconButton(onClick = {
+                                        editingId = item.id
+                                        inputCategory = item.category
+                                        inputAmount = item.amount.toString()
+                                        inputMemo = item.memo
+                                    }, modifier = Modifier.size(36.dp)) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "수정",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { onDeleteFixedIncome(item.id) },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "삭제",
+                                            tint = Color(0xFFE53935),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     Text(
-                        "새 고정 수익 항목 추가",
+                        if (editingId == null) "새 고정 수익 항목 추가" else "선택한 항목 내용 변경",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -194,59 +245,109 @@ fun BudgetScreen(
                     onClick = {
                         val amt = inputAmount.toIntOrNull() ?: 0
                         if (inputCategory.isNotBlank() && amt > 0) {
-                            onAddFixedIncome(inputCategory, amt, inputMemo) // 콜백 트리거
-                            showIncomeDialog = false
+                            val currentId = editingId
+                            if (currentId == null) {
+                                onAddFixedIncome(inputCategory, amt, inputMemo)
+                            } else {
+                                onUpdateFixedIncome(currentId, inputCategory, amt, inputMemo)
+                                editingId = null // 수정 완료 후 초기화
+                            }
+                            inputCategory = ""; inputAmount = ""; inputMemo = ""
+                            if (currentId != null) showIncomeDialog = false
+
                         }
                     }
-                ) { Text("추가") }
+                ) { Text(if (editingId == null) "추가" else "수정 완료") }
             },
             dismissButton = {
-                TextButton(onClick = { showIncomeDialog = false }) {
-                    Text(
-                        "닫기",
-                        color = Color.Gray
-                    )
-                }
+                TextButton(onClick = {
+                    if (editingId != null) {
+                        editingId = null // 수정 모드 취소
+                        inputCategory = ""; inputAmount = ""; inputMemo = ""
+                    } else {
+                        showIncomeDialog = false
+                    }
+                }) { Text(if (editingId == null) "닫기" else "취소", color = Color.Gray) }
             }
         )
     }
 
     // 고정 지출 리스트
     if (showExpenseDialog) {
+        var editingId by remember { mutableStateOf<String?>(null) } // 수정 모드 추적용 변수
         var inputCategory by remember { mutableStateOf("") }
         var inputAmount by remember { mutableStateOf("") }
         var inputMemo by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showExpenseDialog = false },
-            title = { Text("고정 지출 내역 관리", fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    if (editingId == null) "고정 지출 내역 관리" else "고정 지출 항목 수정",
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Column {
-                    Text(
-                        "이번 달 등록된 고정 지출 목록입니다.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    if (editingId == null) {
+                        Text(
+                            "이번 달 등록된 고정 지출 목록입니다.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    // 목록 표시 구역
-                    LazyColumn(modifier = Modifier.height(150.dp)) {
-                        items(fixedExpenseList) { item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(item.category, fontWeight = FontWeight.Medium)
-                                Text("- ${formatAmount(item.amount)}원", color = Color(0xFFE53935))
+                        LazyColumn(modifier = Modifier.height(130.dp)) {
+                            items(fixedExpenseList) { item ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(item.category, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "- ${formatAmount(item.amount)}원",
+                                            color = Color(0xFFE53935),
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+
+                                    IconButton(onClick = {
+                                        editingId = item.id
+                                        inputCategory = item.category
+                                        inputAmount = item.amount.toString()
+                                        inputMemo = item.memo
+                                    }, modifier = Modifier.size(36.dp)) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "수정",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { onDeleteFixedExpense(item.id) },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "삭제",
+                                            tint = Color(0xFFE53935),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     Text(
-                        "새 고정 지출 항목 추가",
+                        if (editingId == null) "새 고정 지출 항목 추가" else "선택한 항목 내용 변경",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -283,19 +384,28 @@ fun BudgetScreen(
                     onClick = {
                         val amt = inputAmount.toIntOrNull() ?: 0
                         if (inputCategory.isNotBlank() && amt > 0) {
-                            onAddFixedExpense(inputCategory, amt, inputMemo) // 콜백 트리거
-                            showExpenseDialog = false
+                            val currentId = editingId
+                            if (currentId == null) {
+                                onAddFixedExpense(inputCategory, amt, inputMemo)
+                            } else {
+                                onUpdateFixedExpense(currentId, inputCategory, amt, inputMemo)
+                                editingId = null
+                            }
+                            inputCategory = ""; inputAmount = ""; inputMemo = ""
+                            if (currentId != null) showExpenseDialog = false
                         }
                     }
-                ) { Text("추가") }
+                ) { Text(if (editingId == null) "추가" else "수정 완료") }
             },
             dismissButton = {
-                TextButton(onClick = { showExpenseDialog = false }) {
-                    Text(
-                        "닫기",
-                        color = Color.Gray
-                    )
-                }
+                TextButton(onClick = {
+                    if (editingId != null) {
+                        editingId = null // 수정 모드 취소
+                        inputCategory = ""; inputAmount = ""; inputMemo = ""
+                    } else {
+                        showExpenseDialog = false
+                    }
+                }) { Text(if (editingId == null) "닫기" else "취소", color = Color.Gray) }
             }
         )
     }

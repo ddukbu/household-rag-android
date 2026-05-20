@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.householdrag.api.Expense
+import com.example.householdrag.model.Income
 import com.example.householdrag.ui.theme.LemonMain
 import com.example.householdrag.ui.theme.MonthSelector
 import com.kizitonwose.calendar.compose.HorizontalCalendar
@@ -46,7 +47,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 @Composable
-fun CalendarScreen(expenses: List<Expense>, onListClick: () -> Unit) {
+fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
     // 날짜 상태 관리
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
 
@@ -58,14 +59,21 @@ fun CalendarScreen(expenses: List<Expense>, onListClick: () -> Unit) {
     val daysOfWeek = remember { daysOfWeek() }
     val scope = rememberCoroutineScope()
 
-    // 지출이 있는 날짜들만 모으기 (중복 제거를 위해 Set 사용)
-    val spentDates = remember(expenses) {
-        expenses.mapNotNull {
+    // 지출이 있는 날짜들 (중복 제거)
+    val spentDates = remember(transactions) {
+        transactions.filterIsInstance<Expense>().mapNotNull {
             try {
                 LocalDate.parse(it.date)
             } catch (e: Exception) {
                 null
             }
+        }.toSet()
+    }
+
+    // 수입이 있는 날짜들
+    val incomeDates = remember(transactions) {
+        transactions.filterIsInstance<Income>().mapNotNull {
+            try { LocalDate.parse(it.date) } catch (e: Exception) { null }
         }.toSet()
     }
 
@@ -87,29 +95,6 @@ fun CalendarScreen(expenses: List<Expense>, onListClick: () -> Unit) {
             .background(Color.White)
             .padding(start = 10.dp, top = 0.dp, end = 10.dp, bottom = 10.dp )
     ) {
-//        Row(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(16.dp),
-//            verticalAlignment = Alignment.CenterVertically,
-//            horizontalArrangement = Arrangement.SpaceBetween
-//        ) {
-//            Text(
-//                text = "가계부 캘린더",
-//                style = MaterialTheme.typography.headlineSmall,
-//                fontWeight = FontWeight.Bold
-//            )
-//
-//            // 목록으로 돌아가는 아이콘 버튼
-//            IconButton(onClick = onListClick) {
-//                Icon(
-//                    imageVector = Icons.Default.List, // 리스트 아이콘
-//                    contentDescription = "목록 보기",
-//                    tint = LemonDeep // 우리 앱의 포인트 컬러!
-//                )
-//            }
-//        }
-
         // [상단] 캘린더 헤더 (연도/월 표시)
         MonthSelector(
             currentYM = currentYearMonth.toString(),
@@ -143,7 +128,8 @@ fun CalendarScreen(expenses: List<Expense>, onListClick: () -> Unit) {
                 DayElement(
                     day = day,
                     isSelected = selectedDate == day.date,
-                    hasExpense = spentDates.contains(day.date), // 여기서 지출 여부 확인!
+                    hasExpense = spentDates.contains(day.date),
+                    hasIncome = incomeDates.contains(day.date),
                     onClick = { selectedDate = it.date }
                 )
             }
@@ -151,10 +137,15 @@ fun CalendarScreen(expenses: List<Expense>, onListClick: () -> Unit) {
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 0.5.dp)
 
-        // [하단] 선택된 날짜의 지출 리스트
-        val filteredExpenses = expenses.filter {
+        // [하단] 선택된 날짜의 통합 수입/지출 내역 필터링
+        val filteredTransactions = transactions.filter {
             try {
-                LocalDate.parse(it.date) == selectedDate
+                val dateStr = when (it) {
+                    is Expense -> it.date
+                    is Income -> it.date
+                    else -> ""
+                }
+                LocalDate.parse(dateStr) == selectedDate
             } catch (e: Exception) {
                 false
             }
@@ -168,18 +159,21 @@ fun CalendarScreen(expenses: List<Expense>, onListClick: () -> Unit) {
         ) {
             item {
                 Text(
-                    text = "${selectedDate.dayOfMonth}일 지출 내역",
+                    text = "${selectedDate.dayOfMonth}일 기계부 내역",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
-            if (filteredExpenses.isEmpty()) {
-                item { Text("지출 내역이 없어요.", color = Color.Gray, fontSize = 14.sp) }
+            if (filteredTransactions.isEmpty()) {
+                item { Text("가계부 기록이 없어요.", color = Color.Gray, fontSize = 14.sp) }
             } else {
-                items(filteredExpenses) { expense ->
-                    ExpenseItemCard(expense = expense, onEditClick = {}, onDeleteClick = {})
-                }
+                items(filteredTransactions) { trans ->
+                    ExpenseItemCard(
+                        item = trans,
+                        onEditClick = { /* 캘린더에서는 보기 전용으로 두거나 메인에서 처리 */ },
+                        onDeleteClick = { }
+                    )                }
             }
         }
     }
@@ -190,11 +184,12 @@ fun DayElement(
     day: CalendarDay,
     isSelected: Boolean,
     hasExpense: Boolean,
+    hasIncome: Boolean,
     onClick: (CalendarDay) -> Unit
 ) {
     Box(
         modifier = Modifier
-            .aspectRatio(1f) // 정사각형
+            .aspectRatio(1f)
             .padding(4.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (isSelected) LemonMain else Color.Transparent)
@@ -213,15 +208,28 @@ fun DayElement(
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
             )
 
-            // [포인트!] 지출이 있으면 날짜 아래에 작은 점을 찍습니다.
             if (hasExpense && day.position == DayPosition.MonthDate) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(Color.Red) // 지출은 빨간 점으로 강조!
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    if (hasExpense) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFE53935))
+                        )
+                    }
+                    if (hasIncome) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2E7D32))
+                        )
+                    }
+                }
             }
         }
     }

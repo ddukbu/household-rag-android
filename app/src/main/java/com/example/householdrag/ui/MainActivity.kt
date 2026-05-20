@@ -71,6 +71,7 @@ import com.example.householdrag.model.AssetOut
 import com.example.householdrag.model.BudgetOut
 import com.example.householdrag.model.FixedExpenseBudget
 import com.example.householdrag.model.FixedIncomeBudget
+import com.example.householdrag.model.Income
 import com.example.householdrag.model.InitialAssetRequest
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
@@ -109,6 +110,9 @@ fun HouseholdApp() {
     var expenses by remember { mutableStateOf(listOf<Expense>()) }
     var statusMessage by remember { mutableStateOf("준비됨") }
     var editId by remember { mutableStateOf<String?>(null) }
+
+    // 지출 수익 통합
+    var combinedTransactions by remember { mutableStateOf(listOf<Any>()) }
 
     // 자산 상태
     var assetData by remember { mutableStateOf<AssetOut?>(null) }
@@ -165,20 +169,28 @@ fun HouseholdApp() {
     suspend fun refreshExpenses() {
         isLoading = true
         try {
-            expenses = ApiClient.api.getExpenses()
-//            expenses = listOf(
-//                Expense(
-//                    id = "test_id_1",
-//                    date = "2026-05-18",
-//                    time = "02:00",
-//                    is_fixed_expense = false,
-//                    category = "식비",
-//                    amount = 10000,
-//                    payment_method = "카드",
-//                    place = "연어 맛집",
-//                    memo = "방금 만든 것"
-//                )
-//            )
+            // expenses = ApiClient.api.getExpenses().reversed()
+            val expenseList = ApiClient.api.getExpenses()
+            expenses = expenseList
+
+            val incomeList = ApiClient.api.getIncomes()
+
+            combinedTransactions = (expenseList + incomeList).sortedWith(
+                compareByDescending<Any> {
+                    when (it) {
+                        is Expense -> it.date
+                        is com.example.householdrag.model.Income -> it.date
+                        else -> ""
+                    }
+                }.thenByDescending {
+                    when (it) {
+                        is Expense -> it.time
+                        is com.example.householdrag.model.Income -> it.time
+                        else -> ""
+                    }
+                }
+            )
+
             Log.d("P_TEST", "서버에서 받은 리스트 개수: ${expenses.size}")
             Log.d("P_TEST", "데이터 샘플: $expenses")
             statusMessage = "목록 업데이트 성공"
@@ -411,20 +423,30 @@ fun HouseholdApp() {
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(expenses) { expense ->
+                            items(combinedTransactions) { transactionItem ->
                                 ExpenseItemCard(
-                                    expense = expense,
+                                    item = transactionItem,
                                     onEditClick = {
-                                        editId = expense.id; date = expense.date; category =
-                                        expense.category
-                                        amount = expense.amount.toString(); paymentMethod =
-                                        expense.payment_method
-                                        place = expense.place; memo = expense.memo
-                                        currentScreen = Screen.ADD
+                                        // 수정 처리 로직 (기존 기믹 분기 매핑)
+                                        if (transactionItem is Expense) {
+                                            editId = transactionItem.id; date = transactionItem.date; category = transactionItem.category
+                                            amount = transactionItem.amount.toString(); paymentMethod = transactionItem.payment_method
+                                            place = transactionItem.place; memo = transactionItem.memo
+                                            currentScreen = Screen.ADD
+                                        } else if (transactionItem is Income) {
+                                            editId = transactionItem.id; date = transactionItem.date; category = transactionItem.category
+                                            amount = transactionItem.amount.toString(); memo = transactionItem.memo ?: ""
+                                            place = transactionItem.deposit_source ?: "" // 수입은 입금처를 임시 보관
+                                            currentScreen = Screen.ADD
+                                        }
                                     },
                                     onDeleteClick = {
                                         scope.launch {
-                                            ApiClient.api.deleteExpense(expense.id)
+                                            if (transactionItem is Expense) {
+                                                ApiClient.api.deleteExpense(transactionItem.id)
+                                            } else if (transactionItem is Income) {
+                                                ApiClient.api.deleteIncome(transactionItem.id)
+                                            }
                                             refreshExpenses()
                                             refreshAssets()
                                         }
@@ -637,6 +659,88 @@ fun HouseholdApp() {
                                 }
                             },
 
+                            // 고정 수입 항목 내용 수정
+                            onUpdateFixedIncome = { id, category, amount, memo ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+                                        ApiClient.api.updateFixedIncome(
+                                            yearMonth = currentYearMonth,
+                                            fixedIncomeId = id,
+                                            request = FixedIncomeBudget(
+                                                category = category,
+                                                amount = amount,
+                                                memo = memo
+                                            )
+                                        )
+                                        refreshBudget(currentYearMonth) // 리로드 🔄
+                                    } catch (e: Exception) {
+                                        Log.e("FIXED_INC_UPDATE", "수정 실패: ${e.message}")
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            },
+
+                            // 고정 수입 항목 제거
+                            onDeleteFixedIncome = { id ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+                                        ApiClient.api.deleteFixedIncome(
+                                            yearMonth = currentYearMonth,
+                                            fixedIncomeId = id
+                                        )
+                                        refreshBudget(currentYearMonth) // 리로드 🔄
+                                    } catch (e: Exception) {
+                                        Log.e("FIXED_INC_DELETE", "삭제 실패: ${e.message}")
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            },
+
+                            // 고정 지출 항목 내용 수정
+                            onUpdateFixedExpense = { id, category, amount, memo ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+                                        ApiClient.api.updateFixedExpense(
+                                            yearMonth = currentYearMonth,
+                                            fixedExpenseId = id,
+                                            request = FixedExpenseBudget(
+                                                category = category,
+                                                amount = amount,
+                                                memo = memo
+                                            )
+                                        )
+                                        refreshBudget(currentYearMonth) // 리로드 🔄
+                                    } catch (e: Exception) {
+                                        Log.e("FIXED_EXP_UPDATE", "수정 실패: ${e.message}")
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            },
+
+                            // 고정 지출 항목 제거
+                            onDeleteFixedExpense = { id ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+                                        ApiClient.api.deleteFixedExpense(
+                                            yearMonth = currentYearMonth,
+                                            fixedExpenseId = id
+                                        )
+                                        refreshBudget(currentYearMonth) // 리로드 🔄
+                                    } catch (e: Exception) {
+                                        Log.e("FIXED_EXP_DELETE", "삭제 실패: ${e.message}")
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            },
+
                             onMonthChange = { newYM ->
                                 currentYearMonth = newYM // 화살표 클릭 시 상태 업데이트
                             }
@@ -645,7 +749,7 @@ fun HouseholdApp() {
                 }
 
                 Screen.CALENDAR -> CalendarScreen(
-                    expenses = expenses,
+                    transactions = combinedTransactions,
                     onListClick = { currentScreen = Screen.LIST })
             }
 
