@@ -103,7 +103,7 @@ fun HouseholdApp() {
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf(Screen.LOGIN) } // 기본은 LOGIN 테스트 시 변경
+    var currentScreen by remember { mutableStateOf(Screen.LIST) } // 기본은 LOGIN 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---
@@ -126,6 +126,7 @@ fun HouseholdApp() {
     var paymentMethod by remember { mutableStateOf("") }
     var place by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
+    var expandedItemId by remember { mutableStateOf<String?>(null) }
 
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
@@ -424,8 +425,18 @@ fun HouseholdApp() {
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(combinedTransactions) { transactionItem ->
+                                val itemId = when (transactionItem) {
+                                    is Expense -> transactionItem.id
+                                    is Income -> transactionItem.id
+                                    else -> ""
+                                }
+
                                 ExpenseItemCard(
                                     item = transactionItem,
+                                    isExpanded = expandedItemId == itemId,
+                                    onCardClick = {
+                                        expandedItemId = if (expandedItemId == itemId) null else itemId
+                                    },
                                     onEditClick = {
                                         // 수정 처리 로직 (기존 기믹 분기 매핑)
                                         if (transactionItem is Expense) {
@@ -756,14 +767,15 @@ fun HouseholdApp() {
             if (showAssetDialog) {
                 AlertDialog(
                     onDismissRequest = { showAssetDialog = false },
-                    title = { Text("초기 자산 설정", fontWeight = FontWeight.Bold) },
+                    containerColor = Color.White,
+                    title = { Text("초기 자산 설정", fontWeight = FontWeight.ExtraBold) },
                     text = {
                         Column {
                             Text(
                                 "앱을 시작할 때 가졌던 기준 자산을 입력해 주세요.",
                                 style = MaterialTheme.typography.bodyMedium
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             OutlinedTextField(
                                 value = inputInitialAsset,
                                 onValueChange = { inputInitialAsset = it },

@@ -151,6 +151,8 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
             }
         }
 
+        var expandedCalItemId by remember { mutableStateOf<String?>(null) }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -169,8 +171,18 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
                 item { Text("가계부 기록이 없어요.", color = Color.Gray, fontSize = 14.sp) }
             } else {
                 items(filteredTransactions) { trans ->
+                    val calItemId = when (trans) {
+                        is Expense -> trans.id
+                        is Income -> trans.id
+                        else -> ""
+                    }
+
                     ExpenseItemCard(
                         item = trans,
+                        isExpanded = expandedCalItemId == calItemId,
+                        onCardClick = {
+                            expandedCalItemId = if (expandedCalItemId == calItemId) null else calItemId
+                        },
                         onEditClick = { /* 캘린더에서는 보기 전용으로 두거나 메인에서 처리 */ },
                         onDeleteClick = { }
                     )                }

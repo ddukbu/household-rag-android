@@ -142,6 +142,8 @@ fun BudgetScreen(
 
         AlertDialog(
             onDismissRequest = { showIncomeDialog = false },
+            containerColor = Color.White,
+            // shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
                     if (editingId == null) "고정 수익 내역 관리" else "고정 수익 항목 수정",
@@ -281,6 +283,7 @@ fun BudgetScreen(
 
         AlertDialog(
             onDismissRequest = { showExpenseDialog = false },
+            containerColor = Color.White,
             title = {
                 Text(
                     if (editingId == null) "고정 지출 내역 관리" else "고정 지출 항목 수정",
