@@ -19,5 +19,5 @@ interface QuestionApiService {
 
     // 최근 카테고리별 소비 패턴 분석을 요청한다.
     @POST("analysis")
-    suspend fun analyzeSpending(): AskResponse
+    suspend fun analyzeSpending(@Body request: AskRequest): AskResponse
 }
