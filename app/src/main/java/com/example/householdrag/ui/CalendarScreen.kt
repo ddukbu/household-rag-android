@@ -6,15 +6,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,18 +54,38 @@ import java.time.YearMonth
 fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
     // 날짜 상태 관리
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-
-    // val currentMonth = remember { YearMonth.now() }
     var currentYearMonth by remember { mutableStateOf(YearMonth.now()) }
+
+    // 카테고리
+    var selectedCategoryFilter by remember { mutableStateOf("전체") }
+    var filterDropdownExpanded by remember { mutableStateOf(false) }
+    val filterOptions =
+        listOf("전체", "식비", "교통비", "쇼핑", "여가", "생활", "의료", "월세", "보험료", "월급", "용돈", "부수입", "기타")
 
     val startMonth = remember { currentYearMonth.minusMonths(50) }
     val endMonth = remember { currentYearMonth.plusMonths(50) }
     val daysOfWeek = remember { daysOfWeek() }
     val scope = rememberCoroutineScope()
 
-    // 지출이 있는 날짜들 (중복 제거)
-    val spentDates = remember(transactions) {
-        transactions.filterIsInstance<Expense>().mapNotNull {
+    // 카테고리 필터링
+    val filteredTransactionsByCategory = remember(transactions, selectedCategoryFilter) {
+        if (selectedCategoryFilter == "전체") {
+            transactions
+        } else {
+            transactions.filter {
+                val itemCategory = when (it) {
+                    is Expense -> it.category
+                    is Income -> it.category
+                    else -> ""
+                }
+                itemCategory == selectedCategoryFilter
+            }
+        }
+    }
+
+    // 지출이 있는 날짜들
+    val spentDates = remember(filteredTransactionsByCategory) {
+        filteredTransactionsByCategory.filterIsInstance<Expense>().mapNotNull {
             try {
                 LocalDate.parse(it.date)
             } catch (e: Exception) {
@@ -71,9 +95,13 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
     }
 
     // 수입이 있는 날짜들
-    val incomeDates = remember(transactions) {
-        transactions.filterIsInstance<Income>().mapNotNull {
-            try { LocalDate.parse(it.date) } catch (e: Exception) { null }
+    val incomeDates = remember(filteredTransactionsByCategory) {
+        filteredTransactionsByCategory.filterIsInstance<Income>().mapNotNull {
+            try {
+                LocalDate.parse(it.date)
+            } catch (e: Exception) {
+                null
+            }
         }.toSet()
     }
 
@@ -93,20 +121,69 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(start = 10.dp, top = 0.dp, end = 10.dp, bottom = 10.dp )
+            .padding(start = 10.dp, top = 0.dp, end = 10.dp, bottom = 10.dp)
     ) {
-        // [상단] 캘린더 헤더 (연도/월 표시)
-        MonthSelector(
-            currentYM = currentYearMonth.toString(),
-            onMonthChange = { newYMStr ->
-                val newYM = YearMonth.parse(newYMStr)
-                currentYearMonth = newYM
-                // 화살표 누르면 캘린더도 해당 달로 스크롤!
-                scope.launch {
-                    state.animateScrollToMonth(newYM)
+        // [상단] 캘린더 헤더 (연도/월 표시), 카테고리 드롭다운
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                MonthSelector(
+                    currentYM = currentYearMonth.toString(),
+                    onMonthChange = { newYMStr ->
+                        val newYM = YearMonth.parse(newYMStr)
+                        currentYearMonth = newYM
+                        // 화살표 누르면 캘린더도 해당 달로 스크롤!
+                        scope.launch {
+                            state.animateScrollToMonth(newYM)
+                        }
+                    }
+                )
+            }
+
+            // 카테고리
+            Box(
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF5F5F5))
+                        .clickable { filterDropdownExpanded = true }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = selectedCategoryFilter,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (selectedCategoryFilter == "전체") Color.DarkGray else Color.Black,
+                        fontWeight = if (selectedCategoryFilter == "전체") FontWeight.Normal else FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("▾", fontSize = 12.sp, color = Color.Gray)
+                }
+
+                // 필터 클릭 시 팝업되는 메뉴 상자
+                DropdownMenu(
+                    expanded = filterDropdownExpanded,
+                    onDismissRequest = { filterDropdownExpanded = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    filterOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option, fontSize = 14.sp) },
+                            onClick = {
+                                selectedCategoryFilter = option
+                                filterDropdownExpanded = false
+                            }
+                        )
+                    }
                 }
             }
-        )
+        }
+
 
         // [중앙] 요일 표시 (일~토)
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -160,15 +237,38 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
-                Text(
-                    text = "${selectedDate.dayOfMonth}일 기계부 내역",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${selectedDate.dayOfMonth}일 기계부 내역",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+
+                    // 현재 필터링 모드 안내 뱃지 문구
+                    if (selectedCategoryFilter != "전체") {
+                        Text(
+                            text = "[$selectedCategoryFilter] 보기 중",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
+
             if (filteredTransactions.isEmpty()) {
-                item { Text("가계부 기록이 없어요.", color = Color.Gray, fontSize = 14.sp) }
+                item {
+                    Text(
+                        text = if (selectedCategoryFilter == "전체") "가계부 기록이 없어요." else "해당 날짜에 [$selectedCategoryFilter] 내역이 없어요.",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                }
             } else {
                 items(filteredTransactions) { trans ->
                     val calItemId = when (trans) {
@@ -181,11 +281,13 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
                         item = trans,
                         isExpanded = expandedCalItemId == calItemId,
                         onCardClick = {
-                            expandedCalItemId = if (expandedCalItemId == calItemId) null else calItemId
+                            expandedCalItemId =
+                                if (expandedCalItemId == calItemId) null else calItemId
                         },
                         onEditClick = { /* 캘린더에서는 보기 전용으로 두거나 메인에서 처리 */ },
                         onDeleteClick = { }
-                    )                }
+                    )
+                }
             }
         }
     }

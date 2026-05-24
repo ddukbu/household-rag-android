@@ -44,12 +44,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.ExpenseIn
+import com.example.householdrag.api.FixedExpenseItem
+import com.example.householdrag.api.FixedIncomeItem
 import com.example.householdrag.api.IncomeIn
 import com.example.householdrag.ui.theme.CommonTextField
 import com.example.householdrag.ui.theme.LemonDeep
+import com.example.householdrag.ui.theme.formatAmount
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +64,11 @@ fun ExpenseInputCard(
     paymentMethod: String, onPaymentChange: (String) -> Unit,
     place: String, onPlaceChange: (String) -> Unit,
     memo: String, onMemoChange: (String) -> Unit,
+
+    fixedIncomeList: List<FixedIncomeItem>,
+    fixedExpenseList: List<FixedExpenseItem>,
+    onFixedItemSelect: (category: String, amount: String, memo: String) -> Unit,
+
     //onSaveClick: () -> Unit,
     onResetClick: () -> Unit,
     onSaveExpense: (ExpenseIn) -> Unit, // 지출 저장 콜백
@@ -76,19 +83,21 @@ fun ExpenseInputCard(
     var categoryExpanded by remember { mutableStateOf(false) }
     var paymentExpanded by remember { mutableStateOf(false) }
 
-    // 드롭다운 선택지 리스트
-    val categoryOptions = if (isExpenseMode) {
-        listOf("식비", "교통비", "쇼핑", "여가", "생활", "의료", "월세", "보험료", "기타")
-    } else {
-        listOf("월급", "연금", "부수입", "용돈", "상여", "기타")
-    }
+    val isFixedListAvailable =
+        if (isExpenseMode) fixedExpenseList.isNotEmpty() else fixedIncomeList.isNotEmpty()
+
+//    // 드롭다운 선택지 리스트
+//    val categoryOptions = if (isExpenseMode) {
+//        listOf("식비", "교통비", "쇼핑", "여가", "생활", "의료", "월세", "보험료", "기타")
+//    } else {
+//        listOf("월급", "연금", "부수입", "용돈", "상여", "기타")
+//    }
 
     val methodOptions = if (isExpenseMode) {
         listOf("카드", "현금", "계좌이체", "기타")
     } else {
         listOf("현금", "계좌이체", "기타")
     }
-
     val methodLabel = if (isExpenseMode) "결제수단" else "입금방법"
     val placeLabel = if (isExpenseMode) "사용처" else "입금처"
 
@@ -157,47 +166,27 @@ fun ExpenseInputCard(
                         TypeSelectionChip(
                             text = "지출",
                             isSelected = isExpenseMode,
-                            onClick = { isExpenseMode = true }
+                            onClick = {
+                                isExpenseMode = true
+                                isFixed = false
+                            }
                         )
                         TypeSelectionChip(
                             text = "수입",
                             isSelected = !isExpenseMode,
-                            onClick = { isExpenseMode = false }
+                            onClick = {
+                                isExpenseMode = false
+                                isFixed = false
+                            }
                         )
                     }
                 }
             }
 
-
-//            Text(
-//                text = if (editId == null) "가계부 입력" else "가계부 수정",
-//                style = MaterialTheme.typography.titleMedium
-//            )
-//            Spacer(modifier = Modifier.height(8.dp))
-//
-//            // 지출/수입 버튼
-//            Row(
-//                modifier = Modifier.fillMaxWidth(),
-//                horizontalArrangement = Arrangement.spacedBy(8.dp)
-//            ) {
-//                Button(
-//                    onClick = { isExpenseMode = true },
-//                    modifier = Modifier.weight(1f),
-//                    colors = ButtonDefaults.buttonColors(containerColor = if (isExpenseMode) LemonDeep else Color.LightGray)
-//                ) { Text("지출") }
-//                Button(
-//                    onClick = { isExpenseMode = false },
-//                    modifier = Modifier.weight(1f),
-//                    colors = ButtonDefaults.buttonColors(containerColor = if (!isExpenseMode) LemonDeep else Color.LightGray)
-//                ) { Text("수입") }
-//            }
-
-            // Spacer(modifier = Modifier.height(16.dp))
-
-
             // 고정 여부
             Row(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
                     .padding(end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
@@ -206,15 +195,16 @@ fun ExpenseInputCard(
                     checked = isFixed,
                     onCheckedChange = { isFixed = it })
                 Text(
-                    text = if (isExpenseMode) "고정 지출" else "고정 수입",
-                    style = MaterialTheme.typography.bodySmall
+                    text = if (isExpenseMode) "고정 지출 내역에서 가져오기" else "고정 수입 내역에서 가져오기",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (isFixed) FontWeight.Bold else FontWeight.Normal
                 )
             }
 
             // 날짜 입력 (직접 입력 대신 클릭 시 달력 호출)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // 클릭하면 달력이 뜨는 Box
                 Box(
@@ -247,35 +237,60 @@ fun ExpenseInputCard(
                     )
                 }
             }
-//
-//            // 고정 여부
-//            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-//                androidx.compose.material3.Checkbox(
-//                    checked = isFixed,
-//                    onCheckedChange = { isFixed = it })
-//                Text(
-//                    text = if (isExpenseMode) "고정 지출" else "고정 수입",
-//                    style = MaterialTheme.typography.bodySmall
+
+//            // 카테고리 드롭다운 (스피너 역할)
+//            ExposedDropdownMenuBox(
+//                expanded = categoryExpanded,
+//                onExpandedChange = { categoryExpanded = !categoryExpanded },
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(vertical = 4.dp)
+//            ) {
+//                OutlinedTextField(
+//                    value = category,
+//                    onValueChange = {},
+//                    readOnly = true, // 직접 타이핑 방지
+//                    label = { Text("카테고리") },
+//                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
+//                    modifier = Modifier
+//                        .menuAnchor()
+//                        .fillMaxWidth(),
+//                    colors = OutlinedTextFieldDefaults.colors(
+//                        focusedBorderColor = Color.Black,
+//                        unfocusedBorderColor = Color.Gray,
+//                        focusedLabelColor = Color.Black
+//                    )
 //                )
+//                ExposedDropdownMenu(
+//                    expanded = categoryExpanded,
+//                    onDismissRequest = { categoryExpanded = false },
+//                    modifier = Modifier.background(Color.White)
+//                ) {
+//                    categoryOptions.forEach { option ->
+//                        DropdownMenuItem(
+//                            text = { Text(option) },
+//                            onClick = {
+//                                onCategoryChange(option)
+//                                categoryExpanded = false
+//                            }
+//                        )
+//                    }
+//                }
 //            }
 
-            // 카테고리 드롭다운 (스피너 역할)
             ExposedDropdownMenuBox(
                 expanded = categoryExpanded,
                 onExpandedChange = { categoryExpanded = !categoryExpanded },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
             ) {
                 OutlinedTextField(
                     value = category,
                     onValueChange = {},
-                    readOnly = true, // 직접 타이핑 방지
-                    label = { Text("카테고리") },
+                    readOnly = true,
+                    label = { Text(if (isFixed) "등록된 고정 항목 선택" else "카테고리") },
+                    placeholder = { Text(if (isFixed && !isFixedListAvailable) "예산 탭에 등록된 고정 내역이 없어요" else "선택해주세요") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-                    modifier = Modifier
-                        .menuAnchor()
-                        .fillMaxWidth(),
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color.Black,
                         unfocusedBorderColor = Color.Gray,
@@ -287,14 +302,45 @@ fun ExpenseInputCard(
                     onDismissRequest = { categoryExpanded = false },
                     modifier = Modifier.background(Color.White)
                 ) {
-                    categoryOptions.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option) },
-                            onClick = {
-                                onCategoryChange(option)
-                                categoryExpanded = false
+                    if (isFixed) {
+                        // 고정 스위치가 켜진 상태 -> 등록된 예산 리스트 출력
+                        if (isExpenseMode) {
+                            fixedExpenseList.forEach { item ->
+                                DropdownMenuItem(
+                                    text = { Text("${item.category} (${formatAmount(item.amount)}원) · ${item.memo.ifBlank { "메모없음" }}", fontWeight = FontWeight.Medium) },
+                                    onClick = {
+                                        onFixedItemSelect(item.category, item.amount.toString(), item.memo)
+                                        categoryExpanded = false
+                                    }
+                                )
                             }
-                        )
+                        } else {
+                            fixedIncomeList.forEach { item ->
+                                DropdownMenuItem(
+                                    text = { Text("${item.category} (${formatAmount(item.amount)}원) · ${item.memo.ifBlank { "메모없음" }}", fontWeight = FontWeight.Medium) },
+                                    onClick = {
+                                        onFixedItemSelect(item.category, item.amount.toString(), item.memo)
+                                        categoryExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        // 고정 스위치가 꺼진 상태 -> 원래 쓰던 일반 기본 템플릿 제공
+                        val standardOptions = if (isExpenseMode) {
+                            listOf("식비", "교통비", "쇼핑", "여가", "생활", "의료", "월세", "보험료", "기타")
+                        } else {
+                            listOf("월급", "연금", "부수입", "용돈", "상여", "기타")
+                        }
+                        standardOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    onCategoryChange(option)
+                                    categoryExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -315,7 +361,7 @@ fun ExpenseInputCard(
                 )
             )
 
-            // 결제수단 드롭다운 (스피너 역할)
+            // 결제수단 드롭다운
             ExposedDropdownMenuBox(
                 expanded = paymentExpanded,
                 onExpandedChange = { paymentExpanded = !paymentExpanded },
@@ -447,29 +493,29 @@ fun TypeSelectionChip(
     }
 }
 
-@Preview(showBackground = true, name = "가계부 입력 카드 미리보기")
-@Composable
-fun ExpenseInputCardPreview() {
-    com.example.householdrag.ui.theme.HouseholdRAGTheme {
-        Box(modifier = Modifier.padding(16.dp)) {
-            ExpenseInputCard(
-                editId = null,
-                date = "2026-05-10",
-                onDateChange = {},
-                category = "식비",
-                onCategoryChange = {},
-                amount = "10000",
-                onAmountChange = {},
-                paymentMethod = "카드",
-                onPaymentChange = {},
-                place = "스타벅스",
-                onPlaceChange = {},
-                memo = "아메리카노",
-                onMemoChange = {},
-                onResetClick = {},
-                onSaveExpense = {},
-                onSaveIncome = {}
-            )
-        }
-    }
-}
+//@Preview(showBackground = true, name = "가계부 입력 카드 미리보기")
+//@Composable
+//fun ExpenseInputCardPreview() {
+//    com.example.householdrag.ui.theme.HouseholdRAGTheme {
+//        Box(modifier = Modifier.padding(16.dp)) {
+//            ExpenseInputCard(
+//                editId = null,
+//                date = "2026-05-10",
+//                onDateChange = {},
+//                category = "식비",
+//                onCategoryChange = {},
+//                amount = "10000",
+//                onAmountChange = {},
+//                paymentMethod = "카드",
+//                onPaymentChange = {},
+//                place = "스타벅스",
+//                onPlaceChange = {},
+//                memo = "아메리카노",
+//                onMemoChange = {},
+//                onResetClick = {},
+//                onSaveExpense = {},
+//                onSaveIncome = {}
+//            )
+//        }
+//    }
+//}

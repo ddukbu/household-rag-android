@@ -103,7 +103,7 @@ fun HouseholdApp() {
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf(Screen.LIST) } // 기본은 LOGIN 테스트 시 변경
+    var currentScreen by remember { mutableStateOf(Screen.CALENDAR) } // 기본은 LOGIN 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---
@@ -157,9 +157,11 @@ fun HouseholdApp() {
                 budgetData = budgetResponse
 
                 val fixedIncomes = ApiClient.api.getFixedIncomes(yearMonth)
+                fixedIncomeList = fixedIncomes
                 totalFixedIncome = fixedIncomes.sumOf { it.amount }
 
                 val fixedExpenses = ApiClient.api.getFixedExpenses(yearMonth)
+                fixedExpenseList = fixedExpenses
                 totalFixedExpense = fixedExpenses.sumOf { it.amount }
             } catch (e: Exception) {
                 statusMessage = "예산 데이터를 가져오지 못했습니다."
@@ -240,6 +242,13 @@ fun HouseholdApp() {
         if (currentScreen == Screen.LIST) {
             refreshExpenses()
             refreshAssets()
+            refreshBudget(currentYearMonth)
+        }
+    }
+
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == Screen.ADD) {
+            refreshBudget(currentYearMonth)
         }
     }
 
@@ -482,6 +491,16 @@ fun HouseholdApp() {
                             place = place, onPlaceChange = { place = it },
                             memo = memo, onMemoChange = { memo = it },
                             onResetClick = { clearForm(); currentScreen = Screen.LIST },
+
+                            // 추가된 부분
+                            fixedIncomeList = fixedIncomeList,
+                            fixedExpenseList = fixedExpenseList,
+
+                            onFixedItemSelect = { selectedCategory, selectedAmount, selectedMemo ->
+                                category = selectedCategory
+                                amount = selectedAmount
+                                memo = selectedMemo
+                            },
 
                             // 지출 저장 로직
                             onSaveExpense = { expenseReq ->

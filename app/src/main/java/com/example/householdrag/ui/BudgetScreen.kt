@@ -21,14 +21,20 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,6 +56,7 @@ import com.example.householdrag.model.FixedIncomeItem
 import com.example.householdrag.ui.theme.MonthSelector
 import com.example.householdrag.ui.theme.formatAmount
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetScreen(
     currentYM: String,
@@ -82,6 +89,12 @@ fun BudgetScreen(
     // 팝업 가시성을 제어하는 로컬 스위치 상태
     var showIncomeDialog by remember { mutableStateOf(false) }
     var showExpenseDialog by remember { mutableStateOf(false) }
+
+    var incomeCategoryExpanded by remember { mutableStateOf(false) }
+    var expenseCategoryExpanded by remember { mutableStateOf(false) }
+
+    val fixedIncomeOptions = listOf("월급", "부수입", "용돈", "상여", "연금", "기타")
+    val fixedExpenseOptions = listOf("월세", "보험료", "식비", "교통비", "쇼핑", "여가", "생활", "의료", "기타")
 
     Column(
         modifier = Modifier
@@ -141,9 +154,12 @@ fun BudgetScreen(
         var inputMemo by remember { mutableStateOf("") }
 
         AlertDialog(
-            onDismissRequest = { showIncomeDialog = false },
+            onDismissRequest = {
+                showIncomeDialog = false
+                incomeCategoryExpanded = false
+            },
             containerColor = Color.White,
-            // shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
                     if (editingId == null) "고정 수익 내역 관리" else "고정 수익 항목 수정",
@@ -174,7 +190,8 @@ fun BudgetScreen(
                                         Text(
                                             "+ ${formatAmount(item.amount)}원",
                                             color = Color(0xFF4CAF50),
-                                            style = MaterialTheme.typography.bodySmall
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
 
@@ -208,7 +225,10 @@ fun BudgetScreen(
                         }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = Color.LightGray.copy(alpha = 0.5f)
+                    )
                     Text(
                         if (editingId == null) "새 고정 수익 항목 추가" else "선택한 항목 내용 변경",
                         style = MaterialTheme.typography.labelMedium,
@@ -216,21 +236,58 @@ fun BudgetScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    OutlinedTextField(
-                        value = inputCategory,
-                        onValueChange = { inputCategory = it },
-                        label = { Text("카테고리 (예: 월급, 용돈)") },
-                        singleLine = true,
+                    ExposedDropdownMenuBox(
+                        expanded = incomeCategoryExpanded,
+                        onExpandedChange = { incomeCategoryExpanded = !incomeCategoryExpanded },
                         modifier = Modifier.fillMaxWidth()
-                    )
+                    ) {
+                        OutlinedTextField(
+                            value = inputCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("카테고리 선택") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = incomeCategoryExpanded) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Black,
+                                unfocusedBorderColor = Color.Gray,
+                                focusedLabelColor = Color.Black
+                            )
+
+                        )
+                        ExposedDropdownMenu(
+                            expanded = incomeCategoryExpanded,
+                            onDismissRequest = { incomeCategoryExpanded = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            fixedIncomeOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option, fontWeight = FontWeight.Medium) },
+                                    onClick = {
+                                        inputCategory = option
+                                        incomeCategoryExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
+
                     OutlinedTextField(
                         value = inputAmount,
                         onValueChange = { inputAmount = it },
                         label = { Text("금액") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
@@ -238,7 +295,12 @@ fun BudgetScreen(
                         onValueChange = { inputMemo = it },
                         label = { Text("메모") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
                     )
                 }
             },
@@ -258,7 +320,13 @@ fun BudgetScreen(
                             if (currentId != null) showIncomeDialog = false
 
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(50.dp)
+
                 ) { Text(if (editingId == null) "추가" else "수정 완료") }
             },
             dismissButton = {
@@ -282,8 +350,12 @@ fun BudgetScreen(
         var inputMemo by remember { mutableStateOf("") }
 
         AlertDialog(
-            onDismissRequest = { showExpenseDialog = false },
+            onDismissRequest = {
+                showExpenseDialog = false
+                expenseCategoryExpanded = false
+            },
             containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
                     if (editingId == null) "고정 지출 내역 관리" else "고정 지출 항목 수정",
@@ -305,7 +377,7 @@ fun BudgetScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 2.dp),
+                                        .padding(vertical = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -346,7 +418,10 @@ fun BudgetScreen(
                                 }
                             }
                         }
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            color = Color.LightGray.copy(alpha = 0.5f)
+                        )
                     }
 
                     Text(
@@ -356,13 +431,42 @@ fun BudgetScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    OutlinedTextField(
-                        value = inputCategory,
-                        onValueChange = { inputCategory = it },
-                        label = { Text("카테고리 (예: 월세, 보험료)") },
-                        singleLine = true,
+                    ExposedDropdownMenuBox(
+                        expanded = expenseCategoryExpanded,
+                        onExpandedChange = { expenseCategoryExpanded = !expenseCategoryExpanded },
                         modifier = Modifier.fillMaxWidth()
-                    )
+                    ) {
+                        OutlinedTextField(
+                            value = inputCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("카테고리 선택") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expenseCategoryExpanded) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Black,
+                                unfocusedBorderColor = Color.Gray,
+                                focusedLabelColor = Color.Black
+                            )
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expenseCategoryExpanded,
+                            onDismissRequest = { expenseCategoryExpanded = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            fixedExpenseOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option, fontWeight = FontWeight.Medium) },
+                                    onClick = {
+                                        inputCategory = option
+                                        expenseCategoryExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = inputAmount,
@@ -370,15 +474,25 @@ fun BudgetScreen(
                         label = { Text("금액") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = inputMemo,
                         onValueChange = { inputMemo = it },
-                        label = { Text("메모 (선택사항)") },
+                        label = { Text("메모") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
                     )
                 }
             },
@@ -397,7 +511,12 @@ fun BudgetScreen(
                             inputCategory = ""; inputAmount = ""; inputMemo = ""
                             if (currentId != null) showExpenseDialog = false
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(50.dp)
                 ) { Text(if (editingId == null) "추가" else "수정 완료") }
             },
             dismissButton = {
