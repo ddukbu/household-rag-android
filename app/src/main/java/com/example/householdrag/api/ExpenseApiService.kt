@@ -1,7 +1,7 @@
 package com.example.householdrag.api
 
 import com.example.householdrag.model.Expense
-import com.example.householdrag.model.ExpenseRequest
+import com.example.householdrag.model.ExpenseIn
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -17,13 +17,13 @@ interface ExpenseApiService {
 
     // 새 가계부 항목 생성.
     @POST("expenses")
-    suspend fun createExpense(@Body request: ExpenseRequest): Expense
+    suspend fun createExpense(@Body request: ExpenseIn): Expense
 
     // 특정 ID 항목 수정.
     @PUT("expenses/{id}")
     suspend fun updateExpense(
         @Path("id") id: String,
-        @Body request: ExpenseRequest
+        @Body request: ExpenseIn
     ): Expense
 
     // 특정 ID 항목 삭제.

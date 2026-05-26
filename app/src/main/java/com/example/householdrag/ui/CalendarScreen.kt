@@ -6,23 +6,28 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,52 +35,155 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.householdrag.api.Expense
-import com.example.householdrag.ui.theme.HouseholdRAGTheme
+import com.example.householdrag.model.Income
 import com.example.householdrag.ui.theme.LemonMain
+import com.example.householdrag.ui.theme.MonthSelector
 import com.kizitonwose.calendar.compose.HorizontalCalendar
 import com.kizitonwose.calendar.compose.rememberCalendarState
 import com.kizitonwose.calendar.core.CalendarDay
 import com.kizitonwose.calendar.core.DayPosition
 import com.kizitonwose.calendar.core.daysOfWeek
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 
 @Composable
-fun CalendarScreen(expenses: List<Expense>) {
-    // 1. 날짜 상태 관리
+fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
+    // 날짜 상태 관리
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    val currentMonth = remember { YearMonth.now() }
-    val startMonth = remember { currentMonth.minusMonths(50) }
-    val endMonth = remember { currentMonth.plusMonths(50) }
-    val daysOfWeek = remember { daysOfWeek() }
+    var currentYearMonth by remember { mutableStateOf(YearMonth.now()) }
 
-    // 2. 지출이 있는 날짜들만 모으기 (중복 제거를 위해 Set 사용)
-    val spentDates = remember(expenses) {
-        expenses.mapNotNull {
-            try { LocalDate.parse(it.date) } catch (e: Exception) { null }
+    // 카테고리
+    var selectedCategoryFilter by remember { mutableStateOf("전체") }
+    var filterDropdownExpanded by remember { mutableStateOf(false) }
+    val filterOptions =
+        listOf("전체", "식비", "교통비", "쇼핑", "여가", "생활", "의료", "월세", "보험료", "월급", "용돈", "부수입", "기타")
+
+    val startMonth = remember { currentYearMonth.minusMonths(50) }
+    val endMonth = remember { currentYearMonth.plusMonths(50) }
+    val daysOfWeek = remember { daysOfWeek() }
+    val scope = rememberCoroutineScope()
+
+    // 카테고리 필터링
+    val filteredTransactionsByCategory = remember(transactions, selectedCategoryFilter) {
+        if (selectedCategoryFilter == "전체") {
+            transactions
+        } else {
+            transactions.filter {
+                val itemCategory = when (it) {
+                    is Expense -> it.category
+                    is Income -> it.category
+                    else -> ""
+                }
+                itemCategory == selectedCategoryFilter
+            }
+        }
+    }
+
+    // 지출이 있는 날짜들
+    val spentDates = remember(filteredTransactionsByCategory) {
+        filteredTransactionsByCategory.filterIsInstance<Expense>().mapNotNull {
+            try {
+                LocalDate.parse(it.date)
+            } catch (e: Exception) {
+                null
+            }
+        }.toSet()
+    }
+
+    // 수입이 있는 날짜들
+    val incomeDates = remember(filteredTransactionsByCategory) {
+        filteredTransactionsByCategory.filterIsInstance<Income>().mapNotNull {
+            try {
+                LocalDate.parse(it.date)
+            } catch (e: Exception) {
+                null
+            }
         }.toSet()
     }
 
     val state = rememberCalendarState(
         startMonth = startMonth,
         endMonth = endMonth,
-        firstVisibleMonth = currentMonth,
+        firstVisibleMonth = currentYearMonth,
         firstDayOfWeek = daysOfWeek.first()
     )
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        // [상단] 캘린더 헤더 (연도/월 표시)
-        val visibleMonth = remember { derivedStateOf { state.firstVisibleMonth } }
-        Text(
-            text = "${visibleMonth.value.yearMonth.year}년 ${visibleMonth.value.yearMonth.monthValue}월",
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
+    // 캘린더를 직접 넘겼을 때(스와이프) 상단 연/월 글자도 바뀌게 동기화
+    LaunchedEffect(state.firstVisibleMonth) {
+        currentYearMonth = state.firstVisibleMonth.yearMonth
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .padding(start = 10.dp, top = 0.dp, end = 10.dp, bottom = 10.dp)
+    ) {
+        // [상단] 캘린더 헤더 (연도/월 표시), 카테고리 드롭다운
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                MonthSelector(
+                    currentYM = currentYearMonth.toString(),
+                    onMonthChange = { newYMStr ->
+                        val newYM = YearMonth.parse(newYMStr)
+                        currentYearMonth = newYM
+                        // 화살표 누르면 캘린더도 해당 달로 스크롤!
+                        scope.launch {
+                            state.animateScrollToMonth(newYM)
+                        }
+                    }
+                )
+            }
+
+            // 카테고리
+            Box(
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF5F5F5))
+                        .clickable { filterDropdownExpanded = true }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = selectedCategoryFilter,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (selectedCategoryFilter == "전체") Color.DarkGray else Color.Black,
+                        fontWeight = if (selectedCategoryFilter == "전체") FontWeight.Normal else FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("▾", fontSize = 12.sp, color = Color.Gray)
+                }
+
+                // 필터 클릭 시 팝업되는 메뉴 상자
+                DropdownMenu(
+                    expanded = filterDropdownExpanded,
+                    onDismissRequest = { filterDropdownExpanded = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    filterOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option, fontSize = 14.sp) },
+                            onClick = {
+                                selectedCategoryFilter = option
+                                filterDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
 
         // [중앙] 요일 표시 (일~토)
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -83,7 +191,7 @@ fun CalendarScreen(expenses: List<Expense>) {
                 Text(
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
-                    text = dayOfWeek.name.take(1), // 'M', 'T', 'W'...
+                    text = dayOfWeek.name.take(1),
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.Gray
                 )
@@ -97,7 +205,8 @@ fun CalendarScreen(expenses: List<Expense>) {
                 DayElement(
                     day = day,
                     isSelected = selectedDate == day.date,
-                    hasExpense = spentDates.contains(day.date), // 여기서 지출 여부 확인!
+                    hasExpense = spentDates.contains(day.date),
+                    hasIncome = incomeDates.contains(day.date),
                     onClick = { selectedDate = it.date }
                 )
             }
@@ -105,28 +214,79 @@ fun CalendarScreen(expenses: List<Expense>) {
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 0.5.dp)
 
-        // [하단] 선택된 날짜의 지출 리스트
-        val filteredExpenses = expenses.filter {
-            try { LocalDate.parse(it.date) == selectedDate } catch (e: Exception) { false }
+        // [하단] 선택된 날짜의 통합 수입/지출 내역 필터링
+        val filteredTransactions = transactions.filter {
+            try {
+                val dateStr = when (it) {
+                    is Expense -> it.date
+                    is Income -> it.date
+                    else -> ""
+                }
+                LocalDate.parse(dateStr) == selectedDate
+            } catch (e: Exception) {
+                false
+            }
         }
 
+        var expandedCalItemId by remember { mutableStateOf<String?>(null) }
+
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
-                Text(
-                    text = "${selectedDate.dayOfMonth}일 지출 내역",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${selectedDate.dayOfMonth}일 기계부 내역",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+
+                    // 현재 필터링 모드 안내 뱃지 문구
+                    if (selectedCategoryFilter != "전체") {
+                        Text(
+                            text = "[$selectedCategoryFilter] 보기 중",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
-            if (filteredExpenses.isEmpty()) {
-                item { Text("지출 내역이 없어요.", color = Color.Gray, fontSize = 14.sp) }
+
+            if (filteredTransactions.isEmpty()) {
+                item {
+                    Text(
+                        text = if (selectedCategoryFilter == "전체") "가계부 기록이 없어요." else "해당 날짜에 [$selectedCategoryFilter] 내역이 없어요.",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                }
             } else {
-                items(filteredExpenses) { expense ->
-                    ExpenseItemCard(expense = expense, onEditClick = {}, onDeleteClick = {})
+                items(filteredTransactions) { trans ->
+                    val calItemId = when (trans) {
+                        is Expense -> trans.id
+                        is Income -> trans.id
+                        else -> ""
+                    }
+
+                    ExpenseItemCard(
+                        item = trans,
+                        isExpanded = expandedCalItemId == calItemId,
+                        onCardClick = {
+                            expandedCalItemId =
+                                if (expandedCalItemId == calItemId) null else calItemId
+                        },
+                        onEditClick = { /* 캘린더에서는 보기 전용으로 두거나 메인에서 처리 */ },
+                        onDeleteClick = { }
+                    )
                 }
             }
         }
@@ -134,10 +294,16 @@ fun CalendarScreen(expenses: List<Expense>) {
 }
 
 @Composable
-fun DayElement(day: CalendarDay, isSelected: Boolean, hasExpense: Boolean, onClick: (CalendarDay) -> Unit) {
+fun DayElement(
+    day: CalendarDay,
+    isSelected: Boolean,
+    hasExpense: Boolean,
+    hasIncome: Boolean,
+    onClick: (CalendarDay) -> Unit
+) {
     Box(
         modifier = Modifier
-            .aspectRatio(1f) // 정사각형
+            .aspectRatio(1f)
             .padding(4.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (isSelected) LemonMain else Color.Transparent)
@@ -156,56 +322,29 @@ fun DayElement(day: CalendarDay, isSelected: Boolean, hasExpense: Boolean, onCli
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
             )
 
-            // [포인트!] 지출이 있으면 날짜 아래에 작은 점을 찍습니다.
             if (hasExpense && day.position == DayPosition.MonthDate) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(Color.Red) // 지출은 빨간 점으로 강조!
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    if (hasExpense) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFE53935))
+                        )
+                    }
+                    if (hasIncome) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2E7D32))
+                        )
+                    }
+                }
             }
         }
-    }
-}
-
-@Preview(showBackground = true, name = "캘린더 화면 미리보기")
-@Composable
-fun CalendarScreenPreview() {
-    // 미리보기용 가짜 데이터
-    val demoExpenses = listOf(
-        Expense(
-            id = "1",
-            date = LocalDate.now().toString(),
-            category = "식비",
-            amount = 5500,
-            payment_method = "카드",
-            place = "스타벅스",
-            memo = "아메리카노"
-        ),
-        Expense(
-            id = "2",
-            date = LocalDate.now().toString(),
-            category = "생활",
-            amount = 3000,
-            payment_method = "현금",
-            place = "편의점",
-            memo = "우유"
-        ),
-        // 어제 날짜에도 점이 찍히는지 확인하기 위한 데이터
-        Expense(
-            id = "3",
-            date = LocalDate.now().minusDays(1).toString(),
-            category = "교통",
-            amount = 1250,
-            payment_method = "카드",
-            place = "지하철",
-            memo = ""
-        )
-    )
-
-    HouseholdRAGTheme {
-        CalendarScreen(expenses = demoExpenses)
     }
 }

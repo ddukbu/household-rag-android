@@ -8,7 +8,6 @@ val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)
 val Pink80 = Color(0xFFEFB8C8)
 
-// 메인 컬러?
 val MainPurple = Color(0xFF6650a4) // 버튼 등에 쓰일 색
 val PureWhite = Color(0xFFFFFFFF)
 val TextBlack = Color(0xFF1C1B1F) // 완전 검은색보다 약간 부드러운 검정
