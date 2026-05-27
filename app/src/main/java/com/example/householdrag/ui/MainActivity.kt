@@ -60,14 +60,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.householdrag.api.ApiClient
-import com.example.householdrag.api.AskRequest
-import com.example.householdrag.api.ChatHistoryDto
+import com.example.householdrag.api.ApiErrorHandler
 import com.example.householdrag.api.Expense
 import com.example.householdrag.api.FixedExpenseItem
 import com.example.householdrag.api.FixedIncomeItem
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
 import com.example.householdrag.model.AssetOut
+import com.example.householdrag.model.AskRequest
+import com.example.householdrag.model.ChatHistoryDto
+import com.example.householdrag.model.BudgetDraftRequest
+import com.example.householdrag.model.BudgetDraftOut
 import com.example.householdrag.model.BudgetOut
 import com.example.householdrag.model.FixedExpenseBudget
 import com.example.householdrag.model.FixedIncomeBudget
@@ -77,6 +80,7 @@ import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
 
 enum class Screen { LOGIN, SIGNUP, LIST, CALENDAR, ADD, ASK, BUDGET }
+enum class ChatMode { GENERAL, BUDGET }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,6 +109,7 @@ fun HouseholdApp() {
     var isAuthenticated by remember { mutableStateOf(false) }
     var currentScreen by remember { mutableStateOf(Screen.CALENDAR) } // 기본은 LOGIN 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
+    var isChatLoading by remember { mutableStateOf(false) }
 
     // --- 데이터 상태 변수 ---
     var expenses by remember { mutableStateOf(listOf<Expense>()) }
@@ -128,8 +133,10 @@ fun HouseholdApp() {
     var memo by remember { mutableStateOf("") }
     var expandedItemId by remember { mutableStateOf<String?>(null) }
 
-    var question by remember { mutableStateOf("") }
-    var answer by remember { mutableStateOf("") }
+    var currentQuestion by remember { mutableStateOf("") }
+    var chatMode by remember { mutableStateOf(ChatMode.GENERAL) }
+    var selectedBudgetMode by remember { mutableStateOf("balanced") }
+    var pendingBudgetDraft by remember { mutableStateOf<BudgetDraftOut?>(null) }
 
     var currentYearMonth by remember {
         mutableStateOf(
@@ -142,7 +149,6 @@ fun HouseholdApp() {
     var fixedIncomeList by remember { mutableStateOf(listOf<FixedIncomeItem>()) }
     var fixedExpenseList by remember { mutableStateOf(listOf<FixedExpenseItem>()) }
     var chatHistory by remember { mutableStateOf(listOf<ChatHistoryDto>()) }
-    var currentQuestion by remember { mutableStateOf("") }
 
     // --- 로직 함수 ---
     fun clearForm() {
@@ -224,9 +230,198 @@ fun HouseholdApp() {
         scope.launch {
             try {
                 val history = ApiClient.api.getChatHistory()
-                chatHistory = history
+                // 정렬 기준: 서버가 어떤 순서로 내려주든 created_at 기준으로 오래된->최신 정렬하여 일관성 유지
+                val serverList = history.sortedBy { it.created_at }
+                val serverIds = serverList.map { it.id }.toSet()
+                // local optimistic messages are those we create with local- / draft- / analysis- prefixes
+                val optimisticLocal = chatHistory.filter {
+                    it.id.startsWith("local-") || it.id.startsWith("draft-") || it.id.startsWith("analysis-") || it.id.startsWith("apply-") || it.id.startsWith("cancel-")
+                }
+                val merged = serverList + optimisticLocal.filter { !serverIds.contains(it.id) }
+                chatHistory = merged
             } catch (e: Exception) {
                 Log.e("Chat", "대화 기록 로드 실패", e)
+            }
+        }
+    }
+
+    fun budgetModeLabel(mode: String): String {
+        return when (mode) {
+            "saving" -> "특수 버튼: 절약"
+            "relaxed" -> "특수 버튼: 여유"
+            else -> "특수 버튼: 균형"
+        }
+    }
+
+    fun formatBudgetDraftAnswer(draft: BudgetDraftOut): String {
+        val detailText = draft.budget_details.entries.joinToString("\n") { (category, amount) ->
+            "$category: ${String.format("%,d", amount)}원"
+        }
+        val remainingText = draft.remaining_budget_details.entries.joinToString("\n") { (category, amount) ->
+            "$category: ${String.format("%,d", amount)}원"
+        }
+
+        return buildString {
+            append(draft.message)
+            append("\n\n추천 예산안:\n")
+            append(detailText)
+            append("\n\n남은 예산:\n")
+            append(remainingText)
+            append("\n\n이대로 예산안에 적용할까요?")
+        }
+    }
+
+    fun askGeneralQuestion() {
+        val submittedQuestion = currentQuestion.trim()
+        if (submittedQuestion.isBlank()) return
+
+        scope.launch {
+            isChatLoading = true
+            try {
+                val res = ApiClient.api.ask(AskRequest(submittedQuestion))
+                Log.d(TAG, "AI 응답 수신 성공")
+
+                val rSecText = res.retrieval_seconds?.toString().orEmpty()
+                val gSecText = res.generation_seconds?.toString().orEmpty()
+                val tSecText = res.total_seconds?.toString().orEmpty()
+
+                val answerText = buildString {
+                    append(res.answer.orEmpty())
+                    if (rSecText.isNotEmpty() || gSecText.isNotEmpty() || tSecText.isNotEmpty()) {
+                        append("\n\n시간: r=")
+                        append(rSecText.ifEmpty { "-" })
+                        append(", g=")
+                        append(gSecText.ifEmpty { "-" })
+                        append(", t=")
+                        append(tSecText.ifEmpty { "-" })
+                    }
+                    if (res.references.isNotEmpty()) {
+                        append("\n\n참고: ")
+                        append(res.references.joinToString(", "))
+                    }
+                }
+                chatHistory = chatHistory + ChatHistoryDto(
+                    id = "local-${System.currentTimeMillis()}",
+                    mode = "ask",
+                    question = submittedQuestion,
+                    answer = answerText
+                )
+                currentQuestion = ""
+            } catch (e: Exception) {
+                Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
+                statusMessage = ApiErrorHandler.getUserMessage(e)
+            } finally {
+                isChatLoading = false
+            }
+        }
+    }
+
+    fun analyzeGeneralSpending() {
+        val submittedQuestion = currentQuestion.trim()
+        scope.launch {
+            isChatLoading = true
+            try {
+                val requestText = submittedQuestion.ifBlank {
+                    "최근 카테고리별 소비 패턴을 분석해줘."
+                }
+                val res = ApiClient.api.analyzeSpending(AskRequest(requestText))
+                chatHistory = chatHistory + ChatHistoryDto(
+                    id = "analysis-${System.currentTimeMillis()}",
+                    mode = "ask",
+                    question = if (submittedQuestion.isBlank()) "특수 버튼: 분석" else "특수 버튼: 분석\n$submittedQuestion",
+                    answer = res.answer.orEmpty()
+                )
+                currentQuestion = ""
+            } catch (e: Exception) {
+                Log.e(TAG, "분석 API 호출 에러: ${e.message}", e)
+                statusMessage = ApiErrorHandler.getUserMessage(e)
+            } finally {
+                isChatLoading = false
+            }
+        }
+    }
+
+    fun createBudgetDraftFromChat(mode: String, userMessage: String = "") {
+        scope.launch {
+            isChatLoading = true
+            try {
+                val draft = ApiClient.api.createBudgetDraft(
+                    currentYearMonth,
+                    BudgetDraftRequest(
+                        mode = mode,
+                        user_message = userMessage
+                    )
+                )
+                pendingBudgetDraft = draft
+                chatMode = ChatMode.BUDGET
+                chatHistory = chatHistory + ChatHistoryDto(
+                    id = "draft-${System.currentTimeMillis()}",
+                    mode = "budget",
+                    question = buildString {
+                        append(budgetModeLabel(mode))
+                        if (userMessage.isNotBlank()) {
+                            append("\n")
+                            append(userMessage)
+                        }
+                    },
+                    answer = formatBudgetDraftAnswer(draft)
+                )
+                currentQuestion = ""
+            } catch (e: Exception) {
+                Log.e(TAG, "예산안 draft 생성 에러: ${e.message}", e)
+                statusMessage = ApiErrorHandler.getUserMessage(e)
+            } finally {
+                isChatLoading = false
+            }
+        }
+    }
+
+    fun applyBudgetDraft() {
+        if (pendingBudgetDraft == null) return
+        scope.launch {
+            isChatLoading = true
+            try {
+                val result = ApiClient.api.applyBudgetDraft(currentYearMonth)
+                budgetData = result.budget
+                pendingBudgetDraft = null
+                chatMode = ChatMode.GENERAL
+                chatHistory = chatHistory + ChatHistoryDto(
+                    id = "apply-${System.currentTimeMillis()}",
+                    mode = "budget",
+                    question = "특수 버튼: 확인",
+                    answer = result.message
+                )
+                refreshBudget(currentYearMonth)
+            } catch (e: Exception) {
+                Log.e(TAG, "예산안 적용 에러: ${e.message}", e)
+                statusMessage = ApiErrorHandler.getUserMessage(e)
+            } finally {
+                isChatLoading = false
+            }
+        }
+    }
+
+    fun cancelBudgetDraft() {
+        if (pendingBudgetDraft == null) return
+        scope.launch {
+            isChatLoading = true
+            try {
+                val result = ApiClient.api.cancelBudgetDraft(currentYearMonth)
+                budgetData = result.budget
+                pendingBudgetDraft = null
+                chatMode = ChatMode.GENERAL
+                chatHistory = chatHistory + ChatHistoryDto(
+                    id = "cancel-${System.currentTimeMillis()}",
+                    mode = "budget",
+                    question = "특수 버튼: 취소",
+                    answer = result.message
+                )
+                refreshBudget(currentYearMonth)
+            } catch (e: Exception) {
+                Log.e(TAG, "예산안 취소 에러: ${e.message}", e)
+                statusMessage = ApiErrorHandler.getUserMessage(e)
+            } finally {
+                isChatLoading = false
             }
         }
     }
@@ -557,44 +752,37 @@ fun HouseholdApp() {
                     AskSectionCard(
                         chatHistory = chatHistory,
                         currentQuestion = currentQuestion,
+                        chatMode = chatMode,
+                        isWaitingAnswer = isChatLoading,
+                        hasPendingBudgetDraft = pendingBudgetDraft != null,
                         onQuestionChange = { currentQuestion = it },
                         onAskClick = {
-                            if (question.isBlank()) return@AskSectionCard
-                            scope.launch {
-                                isLoading = true
-                                try {
-                                    val res = ApiClient.api.ask(AskRequest(question))
-                                    Log.d(TAG, "AI 응답 수신 성공")
-
-                                    val rSecText = res.retrieval_seconds?.toString().orEmpty()
-                                    val gSecText = res.generation_seconds?.toString().orEmpty()
-                                    val tSecText = res.total_seconds?.toString().orEmpty()
-
-                                    answer = buildString {
-                                        append(res.answer.orEmpty())
-                                        if (rSecText.isNotEmpty() || gSecText.isNotEmpty() || tSecText.isNotEmpty()) {
-                                            append("\n\n시간: r=")
-                                            append(rSecText.ifEmpty { "-" })
-                                            append(", g=")
-                                            append(gSecText.ifEmpty { "-" })
-                                            append(", t=")
-                                            append(tSecText.ifEmpty { "-" })
-                                        }
-                                        if (res.references.isNotEmpty()) {
-                                            append("\n\n참고: ")
-                                            append(res.references.joinToString(", "))
-                                        }
-                                    }
-                                    currentQuestion = ""
-                                    refreshChatHistory()
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "질문 API 호출 에러: ${e.message}", e)
-                                    answer = "죄송해요, 답변을 가져오지 못했어요."
-                                } finally {
-                                    isLoading = false
-                                }
+                            if (chatMode == ChatMode.BUDGET) {
+                                createBudgetDraftFromChat(
+                                    mode = selectedBudgetMode,
+                                    userMessage = currentQuestion.trim()
+                                )
+                            } else {
+                                askGeneralQuestion()
                             }
-                        }
+                        },
+                        onAnalysisClick = { analyzeGeneralSpending() },
+                        onBudgetModeClick = {
+                            selectedBudgetMode = "balanced"
+                            createBudgetDraftFromChat(
+                                mode = "balanced",
+                                userMessage = currentQuestion.trim()
+                            )
+                        },
+                        onBudgetToneClick = { mode ->
+                            selectedBudgetMode = mode
+                            createBudgetDraftFromChat(
+                                mode = mode,
+                                userMessage = currentQuestion.trim()
+                            )
+                        },
+                        onBudgetApplyClick = { applyBudgetDraft() },
+                        onBudgetCancelClick = { cancelBudgetDraft() }
                     )
                 }
 
