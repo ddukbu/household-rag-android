@@ -781,9 +781,11 @@ fun HouseholdApp() {
                                     try {
                                         isLoading = true
 
-                                        val updatedMap = mapOf(targetCategory to newLimitAmount)
+                                        val currentDetails = budgetData?.budget_details?.toMutableMap() ?: mutableMapOf()
+                                        currentDetails[targetCategory] = newLimitAmount
+
                                         val requestBody = BudgetDetailsUpdateRequest(
-                                            budget_details = updatedMap
+                                            budget_details = currentDetails
                                         )
 
                                         ApiClient.api.updateBudgetDetails(

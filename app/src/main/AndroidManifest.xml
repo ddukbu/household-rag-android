@@ -3,10 +3,12 @@
 
     <application
         android:allowBackup="true"
-        android:label="HouseHoldRAG"
+        android:label="MoneyMate"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <activity
             android:name=".ui.MainActivity"
             android:exported="true">

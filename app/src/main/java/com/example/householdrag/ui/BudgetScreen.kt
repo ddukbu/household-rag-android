@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -19,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -688,25 +690,62 @@ fun BudgetSummaryCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable { onIncomeRowClick() }
-                        .padding(vertical = 6.dp, horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("고정 수익", style = MaterialTheme.typography.bodyMedium)
-                    Text("+ ${formatAmount(fixedIncome)}원", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "고정 수익",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Black
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "+ ${formatAmount(fixedIncome)}원",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = "고정 수익 관리 이동",
+                            tint = Color.Black.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 // 고정 지출 행 클릭 가능 영역 변환
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable { onExpenseRowClick() }
-                        .padding(vertical = 6.dp, horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("고정 지출", style = MaterialTheme.typography.bodyMedium)
-                    Text("- ${formatAmount(fixedExpense)}원", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "고정 지출",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Black
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "- ${formatAmount(fixedExpense)}원",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = "고정 지출 관리 이동",
+                            tint = Color.Black.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
