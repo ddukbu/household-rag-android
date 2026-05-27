@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.householdrag.model.BudgetOut
 import com.example.householdrag.model.FixedExpenseItem
 import com.example.householdrag.model.FixedIncomeItem
@@ -73,7 +74,8 @@ fun BudgetScreen(
     onDeleteFixedIncome: (String) -> Unit,
     onUpdateFixedExpense: (String, String, Int, String) -> Unit, // id, category, amount, memo
     onDeleteFixedExpense: (String) -> Unit,
-    onMonthChange: (String) -> Unit
+    onMonthChange: (String) -> Unit,
+    onUpdateCategoryBudget: (category: String, newLimit: Int) -> Unit
 ) {
     // 서버 데이터가 오기 전에는 로딩 UI를 보여주거나 빈 화면
     if (budgetData == null) {
@@ -95,6 +97,13 @@ fun BudgetScreen(
 
     val fixedIncomeOptions = listOf("월급", "부수입", "용돈", "상여", "연금", "기타")
     val fixedExpenseOptions = listOf("월세", "보험료", "식비", "교통비", "쇼핑", "여가", "생활", "의료", "기타")
+
+    var showLimitEditDialog by remember { mutableStateOf(false) }
+    var selectedCategoryToEdit by remember { mutableStateOf("") }
+    var inputNewLimit by remember { mutableStateOf("") }
+
+    var currentRemainingAmount by remember { mutableStateOf(0) }
+    var currentTotalLimitAmount by remember { mutableStateOf(0) }
 
     Column(
         modifier = Modifier
@@ -141,9 +150,119 @@ fun BudgetScreen(
                 budget = limit,
                 spent = spent,
                 remaining = remaining,
-                onClick = { /* TODO: 클릭 시 수정 API 호출 */ }
+                onClick = {
+                    selectedCategoryToEdit = category
+                    inputNewLimit = limit.toString()
+
+                    currentRemainingAmount = remaining
+                    currentTotalLimitAmount = limit
+
+                    showLimitEditDialog = true
+                }
             )
         }
+    }
+
+    // 카테고리 변경
+    if (showLimitEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showLimitEditDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    text = "[$selectedCategoryToEdit] 예산 한도 수정",
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Column {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("현재 카테고리에 남은 돈", fontSize = 13.sp, color = Color.Gray)
+                                Text(
+                                    text = "${formatAmount(currentRemainingAmount)}원",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (currentRemainingAmount < 0) Color(0xFFE53935) else Color(
+                                        0xFF2E7D32
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("기존 목표 예산", fontSize = 13.sp, color = Color.Gray)
+                                Text(
+                                    "${formatAmount(currentTotalLimitAmount)}원",
+                                    fontSize = 13.sp,
+                                    color = Color.Black
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "이번 달 한도 목표 금액을 재설정합니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = inputNewLimit,
+                        onValueChange = { inputNewLimit = it },
+                        label = { Text("목표 금액 (원)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newAmount = inputNewLimit.toIntOrNull() ?: 0
+                        if (newAmount >= 0) {
+                            onUpdateCategoryBudget(selectedCategoryToEdit, newAmount)
+                            showLimitEditDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(50.dp)
+                ) {
+                    Text("변경 완료", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLimitEditDialog = false }) {
+                    Text("취소", color = Color.Gray, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 
     // 고정 수익 리스트
@@ -602,7 +721,18 @@ fun BudgetProgressItem(
     remaining: Int,
     onClick: () -> Unit
 ) {
-    val progressValue = if (budget > 0) spent.toFloat() / budget.toFloat() else 0f
+    val isOverBudget = remaining < 0
+
+    val progressColor = if (isOverBudget) Color(0xFFE53935) else MaterialTheme.colorScheme.primary
+    val remainingTextColor = if (isOverBudget) Color(0xFFE53935) else Color.Gray
+    val remainingFontWeight = if (isOverBudget) FontWeight.Bold else FontWeight.Normal
+
+    val progressValue = if (budget > 0) {
+        if (isOverBudget) 1.0f else spent.toFloat() / budget.toFloat()
+    } else {
+        0f
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -613,11 +743,17 @@ fun BudgetProgressItem(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(category, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = category,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Black,
+                fontWeight = if (isOverBudget) FontWeight.Bold else FontWeight.Medium
+            )
             Text(
                 text = "남은 돈 ${formatAmount(remaining)}원 / 총 ${formatAmount(budget)}원",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
+                color = remainingTextColor,
+                fontWeight = remainingFontWeight
             )
         }
 
@@ -629,7 +765,7 @@ fun BudgetProgressItem(
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(CircleShape),
-            color = MaterialTheme.colorScheme.primary,
+            color = progressColor,
             trackColor = Color(0xFFF0F0F0)
         )
     }

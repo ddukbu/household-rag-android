@@ -68,6 +68,7 @@ import com.example.householdrag.api.FixedIncomeItem
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
 import com.example.householdrag.model.AssetOut
+import com.example.householdrag.model.BudgetDetailsUpdateRequest
 import com.example.householdrag.model.BudgetOut
 import com.example.householdrag.model.FixedExpenseBudget
 import com.example.householdrag.model.FixedIncomeBudget
@@ -773,7 +774,34 @@ fun HouseholdApp() {
 
                             onMonthChange = { newYM ->
                                 currentYearMonth = newYM // 화살표 클릭 시 상태 업데이트
+                            },
+
+                            onUpdateCategoryBudget = { targetCategory, newLimitAmount ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+
+                                        val updatedMap = mapOf(targetCategory to newLimitAmount)
+                                        val requestBody = BudgetDetailsUpdateRequest(
+                                            budget_details = updatedMap
+                                        )
+
+                                        ApiClient.api.updateBudgetDetails(
+                                            yearMonth = currentYearMonth,
+                                            request = requestBody
+                                        )
+
+                                        refreshBudget(currentYearMonth)
+
+                                    } catch (e: Exception) {
+                                        Log.e("BUDGET_LIMIT_UPDATE", "한도 수정 실패: ${e.message}")
+                                        statusMessage = "한도 수정에 실패했습니다."
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
                             }
+
                         )
                     }
                 }
