@@ -325,7 +325,7 @@ fun HouseholdApp() {
                     "최근 카테고리별 소비 패턴을 분석해줘."
                 }
                 val res = ApiClient.api.analyzeSpending(AskRequest(requestText))
-                chatHistory = chatHistory + ChatHistoryDto(
+                chatHistory = chatHistory + ChatHistoryDto(////
                     id = "analysis-${System.currentTimeMillis()}",
                     mode = "ask",
                     question = if (submittedQuestion.isBlank()) "특수 버튼: 분석" else "특수 버튼: 분석\n$submittedQuestion",
@@ -341,7 +341,11 @@ fun HouseholdApp() {
         }
     }
 
-    fun createBudgetDraftFromChat(mode: String, userMessage: String = "") {
+    fun createBudgetDraftFromChat(
+        mode: String,
+        userMessage: String = "",
+        questionLabel: String = budgetModeLabel(mode)
+    ) {
         scope.launch {
             isChatLoading = true
             try {
@@ -358,7 +362,7 @@ fun HouseholdApp() {
                     id = "draft-${System.currentTimeMillis()}",
                     mode = "budget",
                     question = buildString {
-                        append(budgetModeLabel(mode))
+                        append(questionLabel)
                         if (userMessage.isNotBlank()) {
                             append("\n")
                             append(userMessage)
@@ -760,7 +764,8 @@ fun HouseholdApp() {
                             if (chatMode == ChatMode.BUDGET) {
                                 createBudgetDraftFromChat(
                                     mode = selectedBudgetMode,
-                                    userMessage = currentQuestion.trim()
+                                    userMessage = currentQuestion.trim(),
+                                    questionLabel = budgetModeLabel(selectedBudgetMode)
                                 )
                             } else {
                                 askGeneralQuestion()
@@ -771,14 +776,16 @@ fun HouseholdApp() {
                             selectedBudgetMode = "balanced"
                             createBudgetDraftFromChat(
                                 mode = "balanced",
-                                userMessage = currentQuestion.trim()
+                                userMessage = currentQuestion.trim(),
+                                questionLabel = "특수 버튼: 예산안"
                             )
                         },
                         onBudgetToneClick = { mode ->
                             selectedBudgetMode = mode
                             createBudgetDraftFromChat(
                                 mode = mode,
-                                userMessage = currentQuestion.trim()
+                                userMessage = currentQuestion.trim(),
+                                questionLabel = budgetModeLabel(mode)
                             )
                         },
                         onBudgetApplyClick = { applyBudgetDraft() },
