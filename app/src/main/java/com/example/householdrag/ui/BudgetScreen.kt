@@ -3,6 +3,7 @@ package com.example.householdrag.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +59,19 @@ import com.example.householdrag.model.FixedExpenseItem
 import com.example.householdrag.model.FixedIncomeItem
 import com.example.householdrag.ui.theme.MonthSelector
 import com.example.householdrag.ui.theme.formatAmount
+
+fun getCategoryColor(category: String): Color {
+    return when (category) {
+        "식비" -> Color(0xFFFF6B6B) // 연빨강
+        "교통비" -> Color(0xFFFF9F43) // 연주황
+        "쇼핑" -> Color(0xFFFECA57) // 연노랑
+        "여가" -> Color(0xFF1DD1A1) // 연초록
+        "생활" -> Color(0xFF54A0FF) // 연파랑
+        "의료" -> Color(0xFF9B5DE5) // 연보라
+        else -> Color(0xFFBCAAA4) // 기타
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,6 +147,109 @@ fun BudgetScreen(
                 showExpenseDialog = true
             }
         )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = "이번 달 예산 이용량",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val overallTotalBudget = budgetData.budget_details.values.sum()
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // 상단 퍼센트 지표 계산
+                var totalSpentSum = 0
+                budgetData.budget_details.forEach { (category, limit) ->
+                    val remaining = budgetData.remaining_budget_details[category] ?: 0
+                    val spent = (limit - remaining).coerceAtLeast(0)
+                    totalSpentSum += spent
+                }
+                val totalProgressPercent =
+                    if (overallTotalBudget > 0) (totalSpentSum.toFloat() / overallTotalBudget.toFloat() * 100).toInt() else 0
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "총 지출액 ${formatAmount(totalSpentSum)}원",
+                        fontSize = 13.sp,
+                        color = Color.DarkGray
+                    )
+                    Text(
+                        text = "$totalProgressPercent%",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (totalProgressPercent > 100) Color.Red else Color.Black
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(14.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE9ECEF))
+                ) {
+                    if (overallTotalBudget > 0) {
+                        budgetData.budget_details.forEach { (category, limit) ->
+                            val remaining = budgetData.remaining_budget_details[category] ?: 0
+                            val spent = (limit - remaining).coerceAtLeast(0)
+                            val weightValue = spent.toFloat() / overallTotalBudget.toFloat()
+
+                            if (weightValue > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .weight(weightValue)
+                                        .background(getCategoryColor(category))
+                                )
+                            }
+                        }
+                        val remainWeight =
+                            ((overallTotalBudget - totalSpentSum).coerceAtLeast(0)).toFloat() / overallTotalBudget.toFloat()
+                        if (remainWeight > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .weight(remainWeight)
+                                    .background(Color(0xFFE9ECEF))
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    budgetData.budget_details.keys.take(4)
+                        .forEach { cat ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(getCategoryColor(cat))
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = cat, fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -762,7 +879,7 @@ fun BudgetProgressItem(
 ) {
     val isOverBudget = remaining < 0
 
-    val progressColor = if (isOverBudget) Color(0xFFE53935) else MaterialTheme.colorScheme.primary
+    val progressColor = if (isOverBudget) Color(0xFFE53935) else getCategoryColor(category)
     val remainingTextColor = if (isOverBudget) Color(0xFFE53935) else Color.Gray
     val remainingFontWeight = if (isOverBudget) FontWeight.Bold else FontWeight.Normal
 
