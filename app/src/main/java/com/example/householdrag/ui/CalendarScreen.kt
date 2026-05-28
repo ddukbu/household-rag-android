@@ -243,7 +243,7 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${selectedDate.dayOfMonth}일 기계부 내역",
+                        text = "${selectedDate.dayOfMonth}일 가계부 내역",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(vertical = 8.dp)
