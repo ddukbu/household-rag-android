@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,13 +28,16 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.householdrag.api.ChatHistoryDto
+import com.example.householdrag.model.ChatHistoryDto
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import com.example.householdrag.ui.theme.LemonDeep
 
@@ -39,21 +45,54 @@ import com.example.householdrag.ui.theme.LemonDeep
 fun AskSectionCard(
     chatHistory: List<ChatHistoryDto>, // 서버에서 가져온 대화 목록
     currentQuestion: String,           // 지금 치고 있는 글자
+    chatMode: ChatMode,
+    isWaitingAnswer: Boolean,
+    hasPendingBudgetDraft: Boolean = false,
     onQuestionChange: (String) -> Unit,
-    onAskClick: () -> Unit
+    onAskClick: () -> Unit,
+    onAnalysisClick: () -> Unit,
+    onBudgetModeClick: () -> Unit,
+    onBudgetToneClick: (String) -> Unit,
+    onBudgetApplyClick: () -> Unit,
+    onBudgetCancelClick: () -> Unit
 ) {
+    val listState = rememberLazyListState()
+    val actionsEnabled = !isWaitingAnswer
+
+    LaunchedEffect(chatHistory.size, isWaitingAnswer) {
+        if (chatHistory.isNotEmpty()) {
+            val targetIndex = chatHistory.lastIndex + if (isWaitingAnswer) 1 else 0
+            listState.animateScrollToItem(targetIndex)
+        }
+    }
+
     // [포인트] 이제 카드가 아니라 화면 전체를 쓰는 구조가 더 예뻐요!
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF8F9FA)) // 연한 회색 배경
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (chatMode == ChatMode.BUDGET) "채팅 : 예산안 모드" else "채팅 : 일반모드",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.Black
+            )
+        }
+
         // 1. 대화 리스트 영역
         LazyColumn(
             modifier = Modifier
                 .weight(1f) // 남은 공간 다 차지
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
+            state = listState,
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
         ) {
@@ -62,6 +101,79 @@ fun AskSectionCard(
                 ChatBubble(text = history.question, isFromUser = true)
                 // AI 답변 (왼쪽)
                 ChatBubble(text = history.answer, isFromUser = false)
+            }
+
+            if (isWaitingAnswer) {
+                item {
+                    ChatBubble(text = "AI가 답변 중...", isFromUser = false)
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (chatMode == ChatMode.GENERAL) {
+                Button(onClick = onBudgetModeClick, enabled = actionsEnabled) {
+                    Text("예산안")
+                }
+                Button(onClick = onAnalysisClick, enabled = actionsEnabled) {
+                    Text("분석")
+                }
+            } else {
+                Button(
+                    onClick = { onBudgetToneClick("balanced") },
+                    enabled = actionsEnabled,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFD54F),
+                        contentColor = Color.Black,
+                        disabledContainerColor = Color(0xFFFFD54F),
+                        disabledContentColor = Color.Black
+                    )
+                ) {
+                    Text("균형")
+                }
+                Button(
+                    onClick = { onBudgetToneClick("saving") },
+                    enabled = actionsEnabled,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF66BB6A),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF66BB6A),
+                        disabledContentColor = Color.White
+                    )
+                ) {
+                    Text("절약", color = Color.White)
+                }
+                Button(
+                    onClick = { onBudgetToneClick("relaxed") },
+                    enabled = actionsEnabled,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF42A5F5),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF42A5F5),
+                        disabledContentColor = Color.White
+                    )
+                ) {
+                    Text("여유", color = Color.White)
+                }
+                Button(
+                    onClick = onBudgetApplyClick,
+                    enabled = actionsEnabled && hasPendingBudgetDraft
+                ) {
+                    Text("확인")
+                }
+                Button(
+                    enabled = actionsEnabled && hasPendingBudgetDraft,
+                    onClick = onBudgetCancelClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEDEDED))
+                ) {
+                    Text("취소", color = Color.Black)
+                }
             }
         }
 
@@ -80,7 +192,7 @@ fun AskSectionCard(
                 OutlinedTextField(
                     value = currentQuestion,
                     onValueChange = onQuestionChange,
-                    placeholder = { Text("AI에게 분석을 요청하세요...") },
+                    placeholder = { Text(if (chatMode == ChatMode.BUDGET) "예산안 관련 메시지를 입력하세요..." else "AI에게 분석을 요청하세요...") },
                     modifier = Modifier.weight(1f),
                     shape = CircleShape,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -95,6 +207,7 @@ fun AskSectionCard(
                 // 혜림 님이 원하신 '>' 모양의 전송 아이콘
                 IconButton(
                     onClick = onAskClick,
+                    enabled = actionsEnabled,
                     modifier = Modifier
                         .size(48.dp)
                         .background(LemonDeep, CircleShape)
@@ -159,8 +272,15 @@ fun AskSectionOnlyQuestionPreview() {
                 )
             ),
             currentQuestion = "",
+            chatMode = ChatMode.GENERAL,
+            isWaitingAnswer = false,
             onQuestionChange = {},
-            onAskClick = {}
+            onAskClick = {},
+            onAnalysisClick = {},
+            onBudgetModeClick = {},
+            onBudgetToneClick = {},
+            onBudgetApplyClick = {},
+            onBudgetCancelClick = {}
         )
     }
 }
@@ -182,8 +302,15 @@ fun AskSectionFullChatPreview() {
                 )
             ),
             currentQuestion = "",
+            chatMode = ChatMode.BUDGET,
+            isWaitingAnswer = true,
             onQuestionChange = {},
-            onAskClick = {}
+            onAskClick = {},
+            onAnalysisClick = {},
+            onBudgetModeClick = {},
+            onBudgetToneClick = {},
+            onBudgetApplyClick = {},
+            onBudgetCancelClick = {}
         )
     }
 }
