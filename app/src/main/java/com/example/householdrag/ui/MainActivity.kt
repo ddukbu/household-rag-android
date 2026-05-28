@@ -68,6 +68,7 @@ import com.example.householdrag.api.FixedIncomeItem
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
 import com.example.householdrag.model.AssetOut
+import com.example.householdrag.model.BudgetDetailsUpdateRequest
 import com.example.householdrag.model.BudgetOut
 import com.example.householdrag.model.FixedExpenseBudget
 import com.example.householdrag.model.FixedIncomeBudget
@@ -126,6 +127,7 @@ fun HouseholdApp() {
     var paymentMethod by remember { mutableStateOf("") }
     var place by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
+    var expandedItemId by remember { mutableStateOf<String?>(null) }
 
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
@@ -156,9 +158,11 @@ fun HouseholdApp() {
                 budgetData = budgetResponse
 
                 val fixedIncomes = ApiClient.api.getFixedIncomes(yearMonth)
+                fixedIncomeList = fixedIncomes
                 totalFixedIncome = fixedIncomes.sumOf { it.amount }
 
                 val fixedExpenses = ApiClient.api.getFixedExpenses(yearMonth)
+                fixedExpenseList = fixedExpenses
                 totalFixedExpense = fixedExpenses.sumOf { it.amount }
             } catch (e: Exception) {
                 statusMessage = "예산 데이터를 가져오지 못했습니다."
@@ -239,6 +243,13 @@ fun HouseholdApp() {
         if (currentScreen == Screen.LIST) {
             refreshExpenses()
             refreshAssets()
+            refreshBudget(currentYearMonth)
+        }
+    }
+
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == Screen.ADD) {
+            refreshBudget(currentYearMonth)
         }
     }
 
@@ -424,8 +435,18 @@ fun HouseholdApp() {
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(combinedTransactions) { transactionItem ->
+                                val itemId = when (transactionItem) {
+                                    is Expense -> transactionItem.id
+                                    is Income -> transactionItem.id
+                                    else -> ""
+                                }
+
                                 ExpenseItemCard(
                                     item = transactionItem,
+                                    isExpanded = expandedItemId == itemId,
+                                    onCardClick = {
+                                        expandedItemId = if (expandedItemId == itemId) null else itemId
+                                    },
                                     onEditClick = {
                                         // 수정 처리 로직 (기존 기믹 분기 매핑)
                                         if (transactionItem is Expense) {
@@ -471,6 +492,16 @@ fun HouseholdApp() {
                             place = place, onPlaceChange = { place = it },
                             memo = memo, onMemoChange = { memo = it },
                             onResetClick = { clearForm(); currentScreen = Screen.LIST },
+
+                            // 추가된 부분
+                            fixedIncomeList = fixedIncomeList,
+                            fixedExpenseList = fixedExpenseList,
+
+                            onFixedItemSelect = { selectedCategory, selectedAmount, selectedMemo ->
+                                category = selectedCategory
+                                amount = selectedAmount
+                                memo = selectedMemo
+                            },
 
                             // 지출 저장 로직
                             onSaveExpense = { expenseReq ->
@@ -743,7 +774,36 @@ fun HouseholdApp() {
 
                             onMonthChange = { newYM ->
                                 currentYearMonth = newYM // 화살표 클릭 시 상태 업데이트
+                            },
+
+                            onUpdateCategoryBudget = { targetCategory, newLimitAmount ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+
+                                        val currentDetails = budgetData?.budget_details?.toMutableMap() ?: mutableMapOf()
+                                        currentDetails[targetCategory] = newLimitAmount
+
+                                        val requestBody = BudgetDetailsUpdateRequest(
+                                            budget_details = currentDetails
+                                        )
+
+                                        ApiClient.api.updateBudgetDetails(
+                                            yearMonth = currentYearMonth,
+                                            request = requestBody
+                                        )
+
+                                        refreshBudget(currentYearMonth)
+
+                                    } catch (e: Exception) {
+                                        Log.e("BUDGET_LIMIT_UPDATE", "한도 수정 실패: ${e.message}")
+                                        statusMessage = "한도 수정에 실패했습니다."
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
                             }
+
                         )
                     }
                 }
@@ -756,14 +816,15 @@ fun HouseholdApp() {
             if (showAssetDialog) {
                 AlertDialog(
                     onDismissRequest = { showAssetDialog = false },
-                    title = { Text("초기 자산 설정", fontWeight = FontWeight.Bold) },
+                    containerColor = Color.White,
+                    title = { Text("초기 자산 설정", fontWeight = FontWeight.ExtraBold) },
                     text = {
                         Column {
                             Text(
                                 "앱을 시작할 때 가졌던 기준 자산을 입력해 주세요.",
                                 style = MaterialTheme.typography.bodyMedium
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             OutlinedTextField(
                                 value = inputInitialAsset,
                                 onValueChange = { inputInitialAsset = it },

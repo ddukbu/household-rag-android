@@ -3,6 +3,7 @@ package com.example.householdrag.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -19,16 +21,23 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,12 +53,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.householdrag.model.BudgetOut
 import com.example.householdrag.model.FixedExpenseItem
 import com.example.householdrag.model.FixedIncomeItem
 import com.example.householdrag.ui.theme.MonthSelector
 import com.example.householdrag.ui.theme.formatAmount
 
+fun getCategoryColor(category: String): Color {
+    return when (category) {
+        "식비" -> Color(0xFFFF6B6B) // 연빨강
+        "교통비" -> Color(0xFFFF9F43) // 연주황
+        "쇼핑" -> Color(0xFFFECA57) // 연노랑
+        "여가" -> Color(0xFF1DD1A1) // 연초록
+        "생활" -> Color(0xFF54A0FF) // 연파랑
+        "의료" -> Color(0xFF9B5DE5) // 연보라
+        else -> Color(0xFFBCAAA4) // 기타
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetScreen(
     currentYM: String,
@@ -66,7 +90,8 @@ fun BudgetScreen(
     onDeleteFixedIncome: (String) -> Unit,
     onUpdateFixedExpense: (String, String, Int, String) -> Unit, // id, category, amount, memo
     onDeleteFixedExpense: (String) -> Unit,
-    onMonthChange: (String) -> Unit
+    onMonthChange: (String) -> Unit,
+    onUpdateCategoryBudget: (category: String, newLimit: Int) -> Unit
 ) {
     // 서버 데이터가 오기 전에는 로딩 UI를 보여주거나 빈 화면
     if (budgetData == null) {
@@ -82,6 +107,19 @@ fun BudgetScreen(
     // 팝업 가시성을 제어하는 로컬 스위치 상태
     var showIncomeDialog by remember { mutableStateOf(false) }
     var showExpenseDialog by remember { mutableStateOf(false) }
+
+    var incomeCategoryExpanded by remember { mutableStateOf(false) }
+    var expenseCategoryExpanded by remember { mutableStateOf(false) }
+
+    val fixedIncomeOptions = listOf("월급", "부수입", "용돈", "상여", "연금", "기타")
+    val fixedExpenseOptions = listOf("월세", "보험료", "식비", "교통비", "쇼핑", "여가", "생활", "의료", "기타")
+
+    var showLimitEditDialog by remember { mutableStateOf(false) }
+    var selectedCategoryToEdit by remember { mutableStateOf("") }
+    var inputNewLimit by remember { mutableStateOf("") }
+
+    var currentRemainingAmount by remember { mutableStateOf(0) }
+    var currentTotalLimitAmount by remember { mutableStateOf(0) }
 
     Column(
         modifier = Modifier
@@ -110,6 +148,109 @@ fun BudgetScreen(
             }
         )
 
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = "이번 달 예산 이용량",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val overallTotalBudget = budgetData.budget_details.values.sum()
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // 상단 퍼센트 지표 계산
+                var totalSpentSum = 0
+                budgetData.budget_details.forEach { (category, limit) ->
+                    val remaining = budgetData.remaining_budget_details[category] ?: 0
+                    val spent = (limit - remaining).coerceAtLeast(0)
+                    totalSpentSum += spent
+                }
+                val totalProgressPercent =
+                    if (overallTotalBudget > 0) (totalSpentSum.toFloat() / overallTotalBudget.toFloat() * 100).toInt() else 0
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "총 지출액 ${formatAmount(totalSpentSum)}원",
+                        fontSize = 13.sp,
+                        color = Color.DarkGray
+                    )
+                    Text(
+                        text = "$totalProgressPercent%",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (totalProgressPercent > 100) Color.Red else Color.Black
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(14.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE9ECEF))
+                ) {
+                    if (overallTotalBudget > 0) {
+                        budgetData.budget_details.forEach { (category, limit) ->
+                            val remaining = budgetData.remaining_budget_details[category] ?: 0
+                            val spent = (limit - remaining).coerceAtLeast(0)
+                            val weightValue = spent.toFloat() / overallTotalBudget.toFloat()
+
+                            if (weightValue > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .weight(weightValue)
+                                        .background(getCategoryColor(category))
+                                )
+                            }
+                        }
+                        val remainWeight =
+                            ((overallTotalBudget - totalSpentSum).coerceAtLeast(0)).toFloat() / overallTotalBudget.toFloat()
+                        if (remainWeight > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .weight(remainWeight)
+                                    .background(Color(0xFFE9ECEF))
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    budgetData.budget_details.keys.take(4)
+                        .forEach { cat ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(getCategoryColor(cat))
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = cat, fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
@@ -128,9 +269,119 @@ fun BudgetScreen(
                 budget = limit,
                 spent = spent,
                 remaining = remaining,
-                onClick = { /* TODO: 클릭 시 수정 API 호출 */ }
+                onClick = {
+                    selectedCategoryToEdit = category
+                    inputNewLimit = limit.toString()
+
+                    currentRemainingAmount = remaining
+                    currentTotalLimitAmount = limit
+
+                    showLimitEditDialog = true
+                }
             )
         }
+    }
+
+    // 카테고리 변경
+    if (showLimitEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showLimitEditDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    text = "[$selectedCategoryToEdit] 예산 한도 수정",
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Column {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("현재 카테고리에 남은 돈", fontSize = 13.sp, color = Color.Gray)
+                                Text(
+                                    text = "${formatAmount(currentRemainingAmount)}원",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (currentRemainingAmount < 0) Color(0xFFE53935) else Color(
+                                        0xFF2E7D32
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("기존 목표 예산", fontSize = 13.sp, color = Color.Gray)
+                                Text(
+                                    "${formatAmount(currentTotalLimitAmount)}원",
+                                    fontSize = 13.sp,
+                                    color = Color.Black
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "이번 달 한도 목표 금액을 재설정합니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = inputNewLimit,
+                        onValueChange = { inputNewLimit = it },
+                        label = { Text("목표 금액 (원)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newAmount = inputNewLimit.toIntOrNull() ?: 0
+                        if (newAmount >= 0) {
+                            onUpdateCategoryBudget(selectedCategoryToEdit, newAmount)
+                            showLimitEditDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(50.dp)
+                ) {
+                    Text("변경 완료", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLimitEditDialog = false }) {
+                    Text("취소", color = Color.Gray, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 
     // 고정 수익 리스트
@@ -141,7 +392,12 @@ fun BudgetScreen(
         var inputMemo by remember { mutableStateOf("") }
 
         AlertDialog(
-            onDismissRequest = { showIncomeDialog = false },
+            onDismissRequest = {
+                showIncomeDialog = false
+                incomeCategoryExpanded = false
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
                     if (editingId == null) "고정 수익 내역 관리" else "고정 수익 항목 수정",
@@ -172,7 +428,8 @@ fun BudgetScreen(
                                         Text(
                                             "+ ${formatAmount(item.amount)}원",
                                             color = Color(0xFF4CAF50),
-                                            style = MaterialTheme.typography.bodySmall
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
 
@@ -206,7 +463,10 @@ fun BudgetScreen(
                         }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = Color.LightGray.copy(alpha = 0.5f)
+                    )
                     Text(
                         if (editingId == null) "새 고정 수익 항목 추가" else "선택한 항목 내용 변경",
                         style = MaterialTheme.typography.labelMedium,
@@ -214,21 +474,58 @@ fun BudgetScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    OutlinedTextField(
-                        value = inputCategory,
-                        onValueChange = { inputCategory = it },
-                        label = { Text("카테고리 (예: 월급, 용돈)") },
-                        singleLine = true,
+                    ExposedDropdownMenuBox(
+                        expanded = incomeCategoryExpanded,
+                        onExpandedChange = { incomeCategoryExpanded = !incomeCategoryExpanded },
                         modifier = Modifier.fillMaxWidth()
-                    )
+                    ) {
+                        OutlinedTextField(
+                            value = inputCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("카테고리 선택") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = incomeCategoryExpanded) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Black,
+                                unfocusedBorderColor = Color.Gray,
+                                focusedLabelColor = Color.Black
+                            )
+
+                        )
+                        ExposedDropdownMenu(
+                            expanded = incomeCategoryExpanded,
+                            onDismissRequest = { incomeCategoryExpanded = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            fixedIncomeOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option, fontWeight = FontWeight.Medium) },
+                                    onClick = {
+                                        inputCategory = option
+                                        incomeCategoryExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
+
                     OutlinedTextField(
                         value = inputAmount,
                         onValueChange = { inputAmount = it },
                         label = { Text("금액") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
@@ -236,7 +533,12 @@ fun BudgetScreen(
                         onValueChange = { inputMemo = it },
                         label = { Text("메모") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
                     )
                 }
             },
@@ -256,7 +558,13 @@ fun BudgetScreen(
                             if (currentId != null) showIncomeDialog = false
 
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(50.dp)
+
                 ) { Text(if (editingId == null) "추가" else "수정 완료") }
             },
             dismissButton = {
@@ -280,7 +588,12 @@ fun BudgetScreen(
         var inputMemo by remember { mutableStateOf("") }
 
         AlertDialog(
-            onDismissRequest = { showExpenseDialog = false },
+            onDismissRequest = {
+                showExpenseDialog = false
+                expenseCategoryExpanded = false
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
                     if (editingId == null) "고정 지출 내역 관리" else "고정 지출 항목 수정",
@@ -302,7 +615,7 @@ fun BudgetScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 2.dp),
+                                        .padding(vertical = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -343,7 +656,10 @@ fun BudgetScreen(
                                 }
                             }
                         }
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            color = Color.LightGray.copy(alpha = 0.5f)
+                        )
                     }
 
                     Text(
@@ -353,13 +669,42 @@ fun BudgetScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    OutlinedTextField(
-                        value = inputCategory,
-                        onValueChange = { inputCategory = it },
-                        label = { Text("카테고리 (예: 월세, 보험료)") },
-                        singleLine = true,
+                    ExposedDropdownMenuBox(
+                        expanded = expenseCategoryExpanded,
+                        onExpandedChange = { expenseCategoryExpanded = !expenseCategoryExpanded },
                         modifier = Modifier.fillMaxWidth()
-                    )
+                    ) {
+                        OutlinedTextField(
+                            value = inputCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("카테고리 선택") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expenseCategoryExpanded) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Black,
+                                unfocusedBorderColor = Color.Gray,
+                                focusedLabelColor = Color.Black
+                            )
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expenseCategoryExpanded,
+                            onDismissRequest = { expenseCategoryExpanded = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            fixedExpenseOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option, fontWeight = FontWeight.Medium) },
+                                    onClick = {
+                                        inputCategory = option
+                                        expenseCategoryExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = inputAmount,
@@ -367,15 +712,25 @@ fun BudgetScreen(
                         label = { Text("금액") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = inputMemo,
                         onValueChange = { inputMemo = it },
-                        label = { Text("메모 (선택사항)") },
+                        label = { Text("메모") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Black,
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black
+                        )
                     )
                 }
             },
@@ -394,7 +749,12 @@ fun BudgetScreen(
                             inputCategory = ""; inputAmount = ""; inputMemo = ""
                             if (currentId != null) showExpenseDialog = false
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(50.dp)
                 ) { Text(if (editingId == null) "추가" else "수정 완료") }
             },
             dismissButton = {
@@ -447,25 +807,62 @@ fun BudgetSummaryCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable { onIncomeRowClick() }
-                        .padding(vertical = 6.dp, horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("고정 수익", style = MaterialTheme.typography.bodyMedium)
-                    Text("+ ${formatAmount(fixedIncome)}원", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "고정 수익",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Black
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "+ ${formatAmount(fixedIncome)}원",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = "고정 수익 관리 이동",
+                            tint = Color.Black.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 // 고정 지출 행 클릭 가능 영역 변환
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable { onExpenseRowClick() }
-                        .padding(vertical = 6.dp, horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("고정 지출", style = MaterialTheme.typography.bodyMedium)
-                    Text("- ${formatAmount(fixedExpense)}원", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "고정 지출",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Black
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "- ${formatAmount(fixedExpense)}원",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = "고정 지출 관리 이동",
+                            tint = Color.Black.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -480,7 +877,18 @@ fun BudgetProgressItem(
     remaining: Int,
     onClick: () -> Unit
 ) {
-    val progressValue = if (budget > 0) spent.toFloat() / budget.toFloat() else 0f
+    val isOverBudget = remaining < 0
+
+    val progressColor = if (isOverBudget) Color(0xFFE53935) else getCategoryColor(category)
+    val remainingTextColor = if (isOverBudget) Color(0xFFE53935) else Color.Gray
+    val remainingFontWeight = if (isOverBudget) FontWeight.Bold else FontWeight.Normal
+
+    val progressValue = if (budget > 0) {
+        if (isOverBudget) 1.0f else spent.toFloat() / budget.toFloat()
+    } else {
+        0f
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -491,11 +899,17 @@ fun BudgetProgressItem(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(category, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = category,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Black,
+                fontWeight = if (isOverBudget) FontWeight.Bold else FontWeight.Medium
+            )
             Text(
                 text = "남은 돈 ${formatAmount(remaining)}원 / 총 ${formatAmount(budget)}원",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
+                color = remainingTextColor,
+                fontWeight = remainingFontWeight
             )
         }
 
@@ -507,7 +921,7 @@ fun BudgetProgressItem(
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(CircleShape),
-            color = MaterialTheme.colorScheme.primary,
+            color = progressColor,
             trackColor = Color(0xFFF0F0F0)
         )
     }

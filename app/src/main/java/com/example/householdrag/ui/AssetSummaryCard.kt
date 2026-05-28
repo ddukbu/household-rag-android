@@ -21,7 +21,6 @@ import com.example.householdrag.ui.theme.LemonDeep
 
 @Composable
 fun AssetSummaryCard(asset: AssetOut?) {
-    // 테두리 네모 박스를 없애고 깔끔하게 글자들과 밑줄만 배치!
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -44,7 +43,6 @@ fun AssetSummaryCard(asset: AssetOut?) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 혜림 님이 원하신 포인트! 노란색 밑줄
         HorizontalDivider(
             modifier = Modifier.fillMaxWidth(),
             thickness = 3.dp,
@@ -53,7 +51,6 @@ fun AssetSummaryCard(asset: AssetOut?) {
     }
 }
 
-// [중요] 기존에 있던 다른 프리뷰 함수는 지우고, 딱 이거 하나만 남겨두세요!
 @Preview(showBackground = true, name = "노란 밑줄 자산 스타일 미리보기")
 @Composable
 fun AssetSummaryCardPreview() {
