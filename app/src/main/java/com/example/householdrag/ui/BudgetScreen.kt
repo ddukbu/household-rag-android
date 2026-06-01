@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,7 +35,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -328,36 +328,147 @@ fun BudgetScreen(
     }
 
     if (showSavingEditDialog) {
+        val maxSavingSliderValue =
+            if (fixedIncomeTotal > 0) fixedIncomeTotal.toFloat() else 3000000f
+
+        var sliderPosition by remember {
+            val currentSaving = inputNewSaving.toIntOrNull() ?: budgetData.saving
+            mutableStateOf(currentSaving.toFloat().coerceIn(0f, maxSavingSliderValue))
+        }
+
         AlertDialog(
             onDismissRequest = { showSavingEditDialog = false },
             containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             title = {
-                Text(text = "이번 달 저축 목표 변경", fontWeight = FontWeight.ExtraBold, color = Color.Black)
+                Text(
+                    text = "이번 달 저축 목표 변경",
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.Black,
+                    fontSize = 20.sp
+                )
             },
             text = {
                 Column {
                     Text(
-                        text = "현재 모으기로 설정한 금액: ${formatAmount(budgetData.saving)}원",
+                        text = "이번 달 내 고정 수익 한도 내에서 목표를 설정합니다.",
                         fontSize = 13.sp,
                         color = Color.Gray
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = inputNewSaving,
-                        onValueChange = { inputNewSaving = it },
-                        label = { Text("새 목표 저축액 (원)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color.Black,
-                            unfocusedBorderColor = Color.Gray,
-                            focusedLabelColor = Color.Black
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "현재 모으기로 다짐한 금액",
+                            fontSize = 12.sp,
+                            color = Color.Gray
                         )
-                    )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${formatAmount(sliderPosition.toInt())}원",
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 0.dp)
+                    ) {
+                        androidx.compose.material3.Slider(
+                            value = sliderPosition,
+                            onValueChange = {
+                                val snappedValue = (kotlin.math.round(it / 10000f) * 10000).coerceIn(0f, maxSavingSliderValue)
+                                sliderPosition = snappedValue
+                                inputNewSaving = snappedValue.toInt().toString()
+                            },
+                            valueRange = 0f..maxSavingSliderValue,
+                            // steps = if (maxSavingSliderValue >= 10000f) (maxSavingSliderValue.toInt() / 10000) - 1 else 0,
+                            colors = androidx.compose.material3.SliderDefaults.colors(
+                                thumbColor = Color(0xFF2E7D32),
+                                activeTrackColor = Color(0xFF2E7D32),
+                                inactiveTrackColor = Color(0xFFE9ECEF),
+                                activeTickColor = Color.Transparent,
+                                inactiveTickColor = Color.Transparent
+                            )
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("0원", fontSize = 11.sp, color = Color.LightGray)
+                            Text(
+                                "최대 ${formatAmount(maxSavingSliderValue.toInt())}원",
+                                fontSize = 11.sp,
+                                color = Color.LightGray
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val quickIncrements =
+                            listOf(10000 to "+1만", 50000 to "+5만", 100000 to "+10만")
+                        quickIncrements.forEach { (value, label) ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF1F3F5))
+                                    .clickable {
+                                        sliderPosition =
+                                            (sliderPosition + value).coerceAtMost(
+                                                maxSavingSliderValue
+                                            )
+                                        inputNewSaving = sliderPosition.toInt().toString()
+                                    }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.DarkGray
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(0.9f)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFFEBEE))
+                                .clickable {
+                                    sliderPosition = 0f
+                                    inputNewSaving = "0"
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Reset",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFC62828)
+                            )
+                        }
+                    }
                 }
             },
+
             confirmButton = {
                 Button(
                     onClick = {
@@ -386,7 +497,7 @@ fun BudgetScreen(
         )
     }
 
-    // 카테고리 예산 변경
+// 카테고리 예산 변경
     if (showLimitEditDialog) {
         val maxSliderValue =
             if (budgetData.total_budget > 0) budgetData.total_budget.toFloat() else 100000f
@@ -471,11 +582,12 @@ fun BudgetScreen(
                         androidx.compose.material3.Slider(
                             value = sliderPosition,
                             onValueChange = {
-                                sliderPosition = it
-                                inputNewLimit = it.toInt().toString()
+                                val snappedValue = (kotlin.math.round(it / 10000f) * 10000).coerceIn(0f, maxSliderValue)
+                                sliderPosition = snappedValue
+                                inputNewLimit = snappedValue.toInt().toString()
                             },
                             valueRange = 0f..maxSliderValue,
-                            steps = if (maxSliderValue >= 10000f) (maxSliderValue.toInt() / 10000) - 1 else 0,
+                            // steps = if (maxSliderValue >= 10000f) (maxSliderValue.toInt() / 10000) - 1 else 0,
                             colors = androidx.compose.material3.SliderDefaults.colors(
                                 thumbColor = MaterialTheme.colorScheme.primary,
                                 activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -577,7 +689,7 @@ fun BudgetScreen(
         )
     }
 
-    // 고정 수익 리스트
+// 고정 수익 리스트
     if (showIncomeSheet) {
         var editingId by remember { mutableStateOf<String?>(null) }
         var inputCategory by remember { mutableStateOf("") }
@@ -799,7 +911,7 @@ fun BudgetScreen(
     }
 
 
-    // 고정 지출 리스트
+// 고정 지출 리스트
     if (showExpenseSheet) {
         var editingId by remember { mutableStateOf<String?>(null) }
         var inputCategory by remember { mutableStateOf("") }
@@ -1182,6 +1294,21 @@ fun BudgetProgressItem(
         0f
     }
 
+    val singleSolidColor = when {
+        isOverBudget -> Color(0xFF990000)
+        progressValue <= 0.2f -> {
+            Color(0xFFE53935)
+        }
+
+        progressValue <= 0.6f -> {
+            Color(0xFFFFB300)
+        }
+
+        else -> {
+            Color(0xFF81C784)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1209,14 +1336,30 @@ fun BudgetProgressItem(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        LinearProgressIndicator(
-            progress = { progressValue },
+//        LinearProgressIndicator(
+//            progress = { progressValue },
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .height(8.dp)
+//                .clip(CircleShape),
+//            color = progressColor,
+//            trackColor = Color(0xFFF0F0F0)
+
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
-                .clip(CircleShape),
-            color = progressColor,
-            trackColor = Color(0xFFF0F0F0)
-        )
+                .clip(CircleShape)
+                .background(Color(0xFFF0F0F0))
+        ) {
+            if (progressValue > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progressValue)
+                        .fillMaxHeight()
+                        .background(color = singleSolidColor)
+                )
+            }
+        }
     }
 }
