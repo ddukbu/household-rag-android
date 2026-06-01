@@ -66,17 +66,18 @@ import com.example.householdrag.api.FixedExpenseItem
 import com.example.householdrag.api.FixedIncomeItem
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
-import com.example.householdrag.model.AssetOut
 import com.example.householdrag.model.AskRequest
+import com.example.householdrag.model.AssetOut
 import com.example.householdrag.model.BudgetDetailsUpdateRequest
-import com.example.householdrag.model.ChatHistoryDto
-import com.example.householdrag.model.BudgetDraftRequest
 import com.example.householdrag.model.BudgetDraftOut
+import com.example.householdrag.model.BudgetDraftRequest
 import com.example.householdrag.model.BudgetOut
+import com.example.householdrag.model.ChatHistoryDto
 import com.example.householdrag.model.FixedExpenseBudget
 import com.example.householdrag.model.FixedIncomeBudget
 import com.example.householdrag.model.Income
 import com.example.householdrag.model.InitialAssetRequest
+import com.example.householdrag.model.SavingUpdateRequest
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
 
@@ -108,7 +109,7 @@ fun HouseholdApp() {
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf(Screen.LOGIN) } // 기본은 LOGIN 테스트 시 변경
+    var currentScreen by remember { mutableStateOf(Screen.BUDGET) } // 기본은 LOGIN 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
     var isChatLoading by remember { mutableStateOf(false) }
 
@@ -993,6 +994,29 @@ fun HouseholdApp() {
                                     } catch (e: Exception) {
                                         Log.e("BUDGET_LIMIT_UPDATE", "한도 수정 실패: ${e.message}")
                                         statusMessage = "한도 수정에 실패했습니다."
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            },
+
+                            onUpdateSaving = { newSavingAmount ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+
+                                        val requestBody =
+                                            SavingUpdateRequest(saving = newSavingAmount)
+
+                                        ApiClient.api.updateSaving(
+                                            yearMonth = currentYearMonth,
+                                            request = requestBody
+                                        )
+
+                                        refreshBudget(currentYearMonth)
+                                    } catch (e: Exception) {
+                                        Log.e("BUDGET_SAVING_UPDATE", "목표 저축액 수정 실패: ${e.message}")
+                                        statusMessage = "저축액 목표 수정에 실패했습니다."
                                     } finally {
                                         isLoading = false
                                     }
