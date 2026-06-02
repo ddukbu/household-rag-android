@@ -34,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +61,8 @@ import java.util.Calendar
 @Composable
 fun ExpenseInputCard(
     editId: String?,
+    initialIsExpenseMode: Boolean,
+    formSessionKey: Int,
     date: String, onDateChange: (String) -> Unit,
     category: String, onCategoryChange: (String) -> Unit,
     amount: String, onAmountChange: (String) -> Unit,
@@ -93,6 +96,24 @@ fun ExpenseInputCard(
 
     val isFixedListAvailable =
         if (isExpenseMode) fixedExpenseList.isNotEmpty() else fixedIncomeList.isNotEmpty()
+
+    fun resetEntryFieldsForTypeChange() {
+        isFixed = false
+        categoryExpanded = false
+        paymentExpanded = false
+        onCategoryChange("")
+        onAmountChange("")
+        onPaymentChange("")
+        onPlaceChange("")
+        onMemoChange("")
+    }
+
+    LaunchedEffect(formSessionKey, initialIsExpenseMode) {
+        isExpenseMode = initialIsExpenseMode
+        isFixed = false
+        categoryExpanded = false
+        paymentExpanded = false
+    }
 
 //    // 드롭다운 선택지 리스트
 //    val categoryOptions = if (isExpenseMode) {
@@ -183,18 +204,24 @@ fun ExpenseInputCard(
                             text = "지출",
                             isSelected = isExpenseMode,
                             onClick = {
-                                isExpenseMode = true
-                                isFixed = false
-                                currentFixedItemId = "" // 모드 전환 시 ID 초기화
+                                if (!isExpenseMode) {
+                                    isExpenseMode = true
+                                    isFixed = false
+                                    currentFixedItemId = "" // 모드 전환 시 ID 초기화
+                                    resetEntryFieldsForTypeChange()
+                                }
                             }
                         )
                         TypeSelectionChip(
                             text = "수입",
                             isSelected = !isExpenseMode,
                             onClick = {
-                                isExpenseMode = false
-                                isFixed = false
-                                currentFixedItemId = ""
+                                if (isExpenseMode) {
+                                    isExpenseMode = false
+                                    isFixed = false
+                                    currentFixedItemId = ""
+                                    resetEntryFieldsForTypeChange()
+                                }
                             }
                         )
                     }

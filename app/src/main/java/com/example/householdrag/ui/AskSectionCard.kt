@@ -1,7 +1,6 @@
 package com.example.householdrag.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,12 +16,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +28,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -177,7 +177,7 @@ fun AskSectionCard(
             }
         }
 
-        // 2. 하단 입력바 영역
+        // 2. 하단 입력바 영역 (여기가 혜림 님이 말한 '>' 버튼 있는 곳!)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = Color.White,
@@ -202,21 +202,22 @@ fun AskSectionCard(
                     singleLine = true
                 )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                if (chatMode == ChatMode.GENERAL) {
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                // '>' 모양의 전송 아이콘
-                IconButton(
-                    onClick = onAskClick,
-                    enabled = actionsEnabled,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(LemonDeep, CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "전송",
-                        tint = Color.Black
-                    )
+                    IconButton(
+                        onClick = onAskClick,
+                        enabled = actionsEnabled,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(LemonDeep, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "전송",
+                            tint = Color.Black
+                        )
+                    }
                 }
             }
         }

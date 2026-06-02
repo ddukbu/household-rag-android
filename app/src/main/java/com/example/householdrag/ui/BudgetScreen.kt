@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -108,6 +109,8 @@ fun BudgetScreen(
     }
 
     // 팝업 가시성을 제어하는 로컬 스위치 상태
+    val scrollState = androidx.compose.foundation.rememberScrollState()
+
     var showIncomeSheet by remember { mutableStateOf(false) }
     var showExpenseSheet by remember { mutableStateOf(false) }
 
@@ -145,7 +148,8 @@ fun BudgetScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 16.dp)
+            .verticalScroll(scrollState)
+            .padding(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 30.dp)
     ) {
         MonthSelector(currentYM = currentYM, onMonthChange = onMonthChange)
 
