@@ -127,6 +127,18 @@ fun BudgetScreen(
     var currentRemainingAmount by remember { mutableStateOf(0) }
     var currentTotalLimitAmount by remember { mutableStateOf(0) }
 
+    // 예산안 고정 항목 수정/삭제 경고 팝업
+    var showDeleteWarningDialog by remember { mutableStateOf(false) }
+    var showUpdateWarningDialog by remember { mutableStateOf(false) }
+    var pendingActionId by remember { mutableStateOf("") }
+    var pendingActionType by remember { mutableStateOf("") }
+
+    // 수정 대기 데이터 보관함
+    var pendingUpdateCategory by remember { mutableStateOf("") }
+    var pendingUpdateAmount by remember { mutableStateOf(0) }
+    var pendingUpdateMemo by remember { mutableStateOf("") }
+
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Column(
@@ -327,6 +339,7 @@ fun BudgetScreen(
         }
     }
 
+    // 목표 저축액 조절 팝업
     if (showSavingEditDialog) {
         val maxSavingSliderValue =
             if (fixedIncomeTotal > 0) fixedIncomeTotal.toFloat() else 3000000f
@@ -386,7 +399,11 @@ fun BudgetScreen(
                         androidx.compose.material3.Slider(
                             value = sliderPosition,
                             onValueChange = {
-                                val snappedValue = (kotlin.math.round(it / 10000f) * 10000).coerceIn(0f, maxSavingSliderValue)
+                                val snappedValue =
+                                    (kotlin.math.round(it / 10000f) * 10000).coerceIn(
+                                        0f,
+                                        maxSavingSliderValue
+                                    )
                                 sliderPosition = snappedValue
                                 inputNewSaving = snappedValue.toInt().toString()
                             },
@@ -497,7 +514,7 @@ fun BudgetScreen(
         )
     }
 
-// 카테고리 예산 변경
+    // 카테고리 예산 변경
     if (showLimitEditDialog) {
         val maxSliderValue =
             if (budgetData.total_budget > 0) budgetData.total_budget.toFloat() else 100000f
@@ -582,7 +599,11 @@ fun BudgetScreen(
                         androidx.compose.material3.Slider(
                             value = sliderPosition,
                             onValueChange = {
-                                val snappedValue = (kotlin.math.round(it / 10000f) * 10000).coerceIn(0f, maxSliderValue)
+                                val snappedValue =
+                                    (kotlin.math.round(it / 10000f) * 10000).coerceIn(
+                                        0f,
+                                        maxSliderValue
+                                    )
                                 sliderPosition = snappedValue
                                 inputNewLimit = snappedValue.toInt().toString()
                             },
@@ -689,7 +710,130 @@ fun BudgetScreen(
         )
     }
 
-// 고정 수익 리스트
+    // 삭제 확인 주의 문구 팝업
+    if (showDeleteWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteWarningDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    "⚠️ 예산안 내역 삭제 경고",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFE53935)
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "이 고정 항목을 삭제하면,\n이번 달 가계부에 이미 입력되어 있던\n연동 가계부 데이터까지 한꺼번에 동시 삭제됩니다.",
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "정말 삭제하시겠습니까?",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE53935)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (pendingActionType == "INCOME") onDeleteFixedIncome(pendingActionId) else onDeleteFixedExpense(
+                            pendingActionId
+                        )
+                        showDeleteWarningDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE53935),
+                        contentColor = Color.White
+                    )
+                ) { Text("위험 감수하고 삭제") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteWarningDialog = false }) {
+                    Text(
+                        "취소",
+                        color = Color.Gray
+                    )
+                }
+            }
+        )
+    }
+
+    // 수정 확인 주의 문구 팝업
+    if (showUpdateWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showUpdateWarningDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    "⚠️ 예산안 내역 수정 경고",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFF9F43)
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "고정 내역의 세부 사항을 수정하면,\n기존에 가계부에 등록되어 연동 중이던\n수입/지출 원본 금액 정보가 초기화되거나\n의도치 않게 삭제될 수 있습니다.",
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "정말 변경하시겠습니까?",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF9F43)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (pendingActionType == "INCOME") {
+                            onUpdateFixedIncome(
+                                pendingActionId,
+                                pendingUpdateCategory,
+                                pendingUpdateAmount,
+                                pendingUpdateMemo
+                            )
+                        } else {
+                            onUpdateFixedExpense(
+                                pendingActionId,
+                                pendingUpdateCategory,
+                                pendingUpdateAmount,
+                                pendingUpdateMemo
+                            )
+                        }
+                        showUpdateWarningDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF9F43),
+                        contentColor = Color.Black
+                    )
+                ) { Text("수정 진행") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateWarningDialog = false }) {
+                    Text(
+                        "취소",
+                        color = Color.Gray
+                    )
+                }
+            }
+        )
+    }
+
+
+    // 고정 수익 리스트
     if (showIncomeSheet) {
         var editingId by remember { mutableStateOf<String?>(null) }
         var inputCategory by remember { mutableStateOf("") }
@@ -736,12 +880,35 @@ fun BudgetScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
+
+                                        // is_recorded 조건식 체크표시 UI
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(
+                                                    if (item.is_recorded) Color(0xFFE8F5E9) else Color(
+                                                        0xFFECEFF1
+                                                    )
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (item.is_recorded) "☑ 반영됨" else "☐ 미반영",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (item.is_recorded) Color(0xFF2E7D32) else Color.Gray
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
                                         Text(
                                             text = item.category,
                                             fontWeight = FontWeight.ExtraBold,
                                             fontSize = 16.sp,
                                             color = Color.Black
                                         )
+
                                         if (item.memo.isNotBlank()) {
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
@@ -773,7 +940,11 @@ fun BudgetScreen(
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
-                                    IconButton(onClick = { onDeleteFixedIncome(item.id) }) {
+                                    IconButton(onClick = {
+                                        pendingActionId = item.id
+                                        pendingActionType = "INCOME"
+                                        showDeleteWarningDialog = true
+                                    }) {
                                         Icon(
                                             Icons.Default.Delete,
                                             contentDescription = "삭제",
@@ -885,13 +1056,21 @@ fun BudgetScreen(
                             val amt = inputAmount.toIntOrNull() ?: 0
                             if (inputCategory.isNotBlank() && amt > 0) {
                                 val currentId = editingId
-                                if (currentId == null) onAddFixedIncome(
-                                    inputCategory,
-                                    amt,
-                                    inputMemo
-                                ) else onUpdateFixedIncome(currentId, inputCategory, amt, inputMemo)
-                                inputCategory = ""; inputAmount = ""; inputMemo = ""
-                                if (currentId != null) editingId = null
+                                if (currentId == null) {
+                                    onAddFixedIncome(inputCategory, amt, inputMemo)
+                                    inputCategory = ""; inputAmount = ""; inputMemo = ""
+                                } else {
+                                    //onUpdateFixedIncome(currentId, inputCategory, amt, inputMemo)
+                                    pendingActionId = currentId
+                                    pendingActionType = "INCOME"
+                                    pendingUpdateCategory = inputCategory
+                                    pendingUpdateAmount = amt
+                                    pendingUpdateMemo = inputMemo
+                                    showUpdateWarningDialog = true
+
+                                    inputCategory = ""; inputAmount = ""; inputMemo =
+                                        ""; editingId = null
+                                }
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
@@ -911,7 +1090,7 @@ fun BudgetScreen(
     }
 
 
-// 고정 지출 리스트
+    // 고정 지출 리스트
     if (showExpenseSheet) {
         var editingId by remember { mutableStateOf<String?>(null) }
         var inputCategory by remember { mutableStateOf("") }
@@ -955,12 +1134,34 @@ fun BudgetScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
+
+                                        // is_recorded 조건식 체크표시 UI
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(
+                                                    if (item.is_recorded) Color(0xFFE8F5E9) else Color(
+                                                        0xFFECEFF1
+                                                    )
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (item.is_recorded) "☑ 반영됨" else "☐ 미반영",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (item.is_recorded) Color(0xFF2E7D32) else Color.Gray
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+
                                         Text(
                                             item.category,
                                             fontWeight = FontWeight.ExtraBold,
                                             fontSize = 16.sp,
                                             color = Color.Black
                                         )
+
                                         if (item.memo.isNotBlank()) {
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
@@ -993,7 +1194,11 @@ fun BudgetScreen(
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
-                                    IconButton(onClick = { onDeleteFixedExpense(item.id) }) {
+                                    IconButton(onClick = {
+                                        pendingActionId = item.id
+                                        pendingActionType = "EXPENSE"
+                                        showDeleteWarningDialog = true
+                                    }) {
                                         Icon(
                                             Icons.Default.Delete,
                                             contentDescription = "삭제",
@@ -1109,18 +1314,20 @@ fun BudgetScreen(
                             val amt = inputAmount.toIntOrNull() ?: 0
                             if (inputCategory.isNotBlank() && amt > 0) {
                                 val currentId = editingId
-                                if (currentId == null) onAddFixedExpense(
-                                    inputCategory,
-                                    amt,
-                                    inputMemo
-                                ) else onUpdateFixedExpense(
-                                    currentId,
-                                    inputCategory,
-                                    amt,
-                                    inputMemo
-                                )
-                                inputCategory = ""; inputAmount = ""; inputMemo = ""
-                                if (currentId != null) editingId = null
+                                if (currentId == null) {
+                                    onAddFixedExpense(inputCategory, amt, inputMemo)
+                                    inputCategory = ""; inputAmount = ""; inputMemo = ""
+                                } else {
+                                    pendingActionId = currentId
+                                    pendingActionType = "EXPENSE"
+                                    pendingUpdateCategory = inputCategory
+                                    pendingUpdateAmount = amt
+                                    pendingUpdateMemo = inputMemo
+                                    showUpdateWarningDialog = true
+
+                                    inputCategory = ""; inputAmount = ""; inputMemo =
+                                        ""; editingId = null
+                                }
                             }
                         },
                         colors = ButtonDefaults.buttonColors(

@@ -69,7 +69,7 @@ fun ExpenseInputCard(
 
     fixedIncomeList: List<FixedIncomeItem>,
     fixedExpenseList: List<FixedExpenseItem>,
-    onFixedItemSelect: (category: String, amount: String, memo: String) -> Unit,
+    onFixedItemSelect: (category: String, amount: String, memo: String, fixedItemId: String) -> Unit,
 
     //onSaveClick: () -> Unit,
     onResetClick: () -> Unit,
@@ -81,9 +81,15 @@ fun ExpenseInputCard(
     var isExpenseMode by remember { mutableStateOf(true) } // 지출/수입 모드 전환
     var isFixed by remember { mutableStateOf(false) }     // 고정/변동 스위치
 
+    var currentFixedItemId by remember { mutableStateOf("") }
+
     // 드롭다운의 펼침 상태를 관리하는 변수들
     var categoryExpanded by remember { mutableStateOf(false) }
     var paymentExpanded by remember { mutableStateOf(false) }
+
+    // [is_recorded == false]인 목록만
+    val filteredExpenseList = fixedExpenseList.filter { !it.is_recorded }
+    val filteredIncomeList = fixedIncomeList.filter { !it.is_recorded }
 
     val isFixedListAvailable =
         if (isExpenseMode) fixedExpenseList.isNotEmpty() else fixedIncomeList.isNotEmpty()
@@ -179,6 +185,7 @@ fun ExpenseInputCard(
                             onClick = {
                                 isExpenseMode = true
                                 isFixed = false
+                                currentFixedItemId = "" // 모드 전환 시 ID 초기화
                             }
                         )
                         TypeSelectionChip(
@@ -187,6 +194,7 @@ fun ExpenseInputCard(
                             onClick = {
                                 isExpenseMode = false
                                 isFixed = false
+                                currentFixedItemId = ""
                             }
                         )
                     }
@@ -203,7 +211,10 @@ fun ExpenseInputCard(
             ) {
                 androidx.compose.material3.Checkbox(
                     checked = isFixed,
-                    onCheckedChange = { isFixed = it })
+                    onCheckedChange = {
+                        isFixed = it
+                        if (!it) currentFixedItemId = ""
+                    })
                 Text(
                     text = if (isExpenseMode) "고정 지출 내역에서 가져오기" else "고정 수입 내역에서 가져오기",
                     style = MaterialTheme.typography.bodySmall,
@@ -233,6 +244,7 @@ fun ExpenseInputCard(
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
+
                 // 시간
                 Box(
                     modifier = Modifier
@@ -248,6 +260,7 @@ fun ExpenseInputCard(
                 }
             }
 
+            // 카테고리 / 고정항목 선택 드롭다운
             ExposedDropdownMenuBox(
                 expanded = categoryExpanded,
                 onExpandedChange = { categoryExpanded = !categoryExpanded },
@@ -268,7 +281,8 @@ fun ExpenseInputCard(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color.Black,
                         unfocusedBorderColor = Color.Gray,
-                        focusedLabelColor = Color.Black
+                        focusedLabelColor = Color.Black,
+                        disabledTextColor = if (isFixed) Color.DarkGray else Color.Black
                     )
                 )
                 ExposedDropdownMenu(
@@ -288,10 +302,12 @@ fun ExpenseInputCard(
                                         )
                                     },
                                     onClick = {
+                                        currentFixedItemId = item.id
                                         onFixedItemSelect(
                                             item.category,
                                             item.amount.toString(),
-                                            item.memo
+                                            item.memo,
+                                            item.id
                                         )
                                         categoryExpanded = false
                                     }
@@ -307,10 +323,12 @@ fun ExpenseInputCard(
                                         )
                                     },
                                     onClick = {
+                                        currentFixedItemId = item.id
                                         onFixedItemSelect(
                                             item.category,
                                             item.amount.toString(),
-                                            item.memo
+                                            item.memo,
+                                            item.id
                                         )
                                         categoryExpanded = false
                                     }
@@ -328,6 +346,7 @@ fun ExpenseInputCard(
                             DropdownMenuItem(
                                 text = { Text(option) },
                                 onClick = {
+                                    currentFixedItemId = ""
                                     onCategoryChange(option)
                                     categoryExpanded = false
                                 }
@@ -340,8 +359,9 @@ fun ExpenseInputCard(
             // 금액 입력
             OutlinedTextField(
                 value = amount,
-                onValueChange = onAmountChange,
+                onValueChange = { if (!isFixed) onAmountChange(it) },
                 label = { Text("금액 *") },
+                readOnly = isFixed,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
@@ -349,7 +369,8 @@ fun ExpenseInputCard(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.Black,
                     unfocusedBorderColor = Color.Gray,
-                    focusedLabelColor = Color.Black
+                    focusedLabelColor = Color.Black,
+                    disabledTextColor = if (isFixed) Color.DarkGray else Color.Black
                 )
             )
 
@@ -392,7 +413,12 @@ fun ExpenseInputCard(
 
             // 사용처 및 메모 입력
             CommonTextField(value = place, onValueChange = onPlaceChange, label = "$placeLabel *")
-            CommonTextField(value = memo, onValueChange = onMemoChange, label = "메모")
+            CommonTextField(
+                value = memo,
+                onValueChange = { if (!isFixed) onMemoChange(it) },
+                label = "메모",
+                readOnly = isFixed
+            )
 
             Row(
                 modifier = Modifier
@@ -431,7 +457,8 @@ fun ExpenseInputCard(
                                     payment_method = paymentMethod,
                                     place = place,
                                     memo = memo,
-                                    is_fixed_expense = isFixed
+                                    is_fixed_expense = isFixed,
+                                    fixed_item_id = currentFixedItemId
                                 )
                                 onSaveExpense(expenseData)
                             } else {
@@ -443,10 +470,13 @@ fun ExpenseInputCard(
                                     amount = amountInt,
                                     deposit_method = paymentMethod,
                                     deposit_source = place,
-                                    memo = memo
+                                    memo = memo,
+                                    fixed_item_id = currentFixedItemId
                                 )
                                 onSaveIncome(incomeData)
                             }
+                            currentFixedItemId = ""
+                            isFixed = false
                         },
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(

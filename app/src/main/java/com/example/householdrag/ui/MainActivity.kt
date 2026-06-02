@@ -135,6 +135,8 @@ fun HouseholdApp() {
     var memo by remember { mutableStateOf("") }
     var expandedItemId by remember { mutableStateOf<String?>(null) }
 
+    var mainFixedItemId by remember { mutableStateOf("") }
+
     var currentQuestion by remember { mutableStateOf("") }
     var chatMode by remember { mutableStateOf(ChatMode.GENERAL) }
     var selectedBudgetMode by remember { mutableStateOf("balanced") }
@@ -155,7 +157,7 @@ fun HouseholdApp() {
     // --- 로직 함수 ---
     fun clearForm() {
         editId = null; date = ""; category = ""; amount = ""; paymentMethod = ""; place = ""; memo =
-            ""
+            ""; mainFixedItemId = ""
     }
 
     fun refreshBudget(yearMonth: String) {
@@ -237,7 +239,9 @@ fun HouseholdApp() {
                 val serverIds = serverList.map { it.id }.toSet()
                 // local optimistic messages are those we create with local- / draft- / analysis- prefixes
                 val optimisticLocal = chatHistory.filter {
-                    it.id.startsWith("local-") || it.id.startsWith("draft-") || it.id.startsWith("analysis-") || it.id.startsWith("apply-") || it.id.startsWith("cancel-")
+                    it.id.startsWith("local-") || it.id.startsWith("draft-") || it.id.startsWith("analysis-") || it.id.startsWith(
+                        "apply-"
+                    ) || it.id.startsWith("cancel-")
                 }
                 val merged = serverList + optimisticLocal.filter { !serverIds.contains(it.id) }
                 chatHistory = merged
@@ -259,9 +263,10 @@ fun HouseholdApp() {
         val detailText = draft.budget_details.entries.joinToString("\n") { (category, amount) ->
             "$category: ${String.format("%,d", amount)}원"
         }
-        val remainingText = draft.remaining_budget_details.entries.joinToString("\n") { (category, amount) ->
-            "$category: ${String.format("%,d", amount)}원"
-        }
+        val remainingText =
+            draft.remaining_budget_details.entries.joinToString("\n") { (category, amount) ->
+                "$category: ${String.format("%,d", amount)}원"
+            }
 
         return buildString {
             append(draft.message)
@@ -645,19 +650,32 @@ fun HouseholdApp() {
                                     item = transactionItem,
                                     isExpanded = expandedItemId == itemId,
                                     onCardClick = {
-                                        expandedItemId = if (expandedItemId == itemId) null else itemId
+                                        expandedItemId =
+                                            if (expandedItemId == itemId) null else itemId
                                     },
                                     onEditClick = {
                                         // 수정 처리 로직 (기존 기믹 분기 매핑)
                                         if (transactionItem is Expense) {
-                                            editId = transactionItem.id; date = transactionItem.date; category = transactionItem.category
-                                            amount = transactionItem.amount.toString(); paymentMethod = transactionItem.payment_method
-                                            place = transactionItem.place; memo = transactionItem.memo
+                                            editId = transactionItem.id;
+                                            date = transactionItem.date;
+                                            category = transactionItem.category
+                                            amount = transactionItem.amount.toString();
+                                            paymentMethod = transactionItem.payment_method
+                                            place = transactionItem.place;
+                                            memo = transactionItem.memo
+                                            mainFixedItemId =
+                                                transactionItem.fixed_item_id.orEmpty()
                                             currentScreen = Screen.ADD
                                         } else if (transactionItem is Income) {
-                                            editId = transactionItem.id; date = transactionItem.date; category = transactionItem.category
-                                            amount = transactionItem.amount.toString(); memo = transactionItem.memo ?: ""
-                                            place = transactionItem.deposit_source ?: "" // 수입은 입금처를 임시 보관
+                                            editId = transactionItem.id;
+                                            date = transactionItem.date;
+                                            category = transactionItem.category
+                                            amount = transactionItem.amount.toString();
+                                            memo = transactionItem.memo ?: ""
+                                            place = transactionItem.deposit_source
+                                                ?: "" // 수입은 입금처를 임시 보관
+                                            mainFixedItemId =
+                                                transactionItem.fixed_item_id.orEmpty()
                                             currentScreen = Screen.ADD
                                         }
                                     },
@@ -694,19 +712,22 @@ fun HouseholdApp() {
                             onResetClick = { clearForm(); currentScreen = Screen.LIST },
 
                             // 추가된 부분
-                            fixedIncomeList = fixedIncomeList,
-                            fixedExpenseList = fixedExpenseList,
+                            fixedIncomeList = fixedIncomeList.filter { !it.is_recorded },
+                            fixedExpenseList = fixedExpenseList.filter { !it.is_recorded },
 
-                            onFixedItemSelect = { selectedCategory, selectedAmount, selectedMemo ->
+                            onFixedItemSelect = { selectedCategory, selectedAmount, selectedMemo, selectedFixedItemId ->
                                 category = selectedCategory
                                 amount = selectedAmount
                                 memo = selectedMemo
+                                mainFixedItemId = selectedFixedItemId
                             },
 
                             // 지출 저장 로직
                             onSaveExpense = { expenseReq ->
                                 scope.launch {
                                     try {
+                                        val finalRequest = expenseReq.copy(fixed_item_id = mainFixedItemId)
+
                                         if (editId == null) {
                                             ApiClient.api.createExpense(expenseReq) // 신규 지출
                                         } else {
@@ -731,6 +752,8 @@ fun HouseholdApp() {
                             onSaveIncome = { incomeReq ->
                                 scope.launch {
                                     try {
+                                        val finalRequest = incomeReq.copy(fixed_item_id = mainFixedItemId)
+
                                         if (editId == null) {
                                             ApiClient.api.createIncome(incomeReq)
                                         } else {
@@ -977,7 +1000,9 @@ fun HouseholdApp() {
                                     try {
                                         isLoading = true
 
-                                        val currentDetails = budgetData?.budget_details?.toMutableMap() ?: mutableMapOf()
+                                        val currentDetails =
+                                            budgetData?.budget_details?.toMutableMap()
+                                                ?: mutableMapOf()
                                         currentDetails[targetCategory] = newLimitAmount
 
                                         val requestBody = BudgetDetailsUpdateRequest(

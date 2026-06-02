@@ -9,5 +9,6 @@ data class IncomeIn(
     val amount: Int,
     val deposit_method: String,
     val deposit_source: String,
-    val memo: String
+    val memo: String,
+    val fixed_item_id: String = ""
 )

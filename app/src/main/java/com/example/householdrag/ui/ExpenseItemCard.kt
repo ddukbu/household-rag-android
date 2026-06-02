@@ -27,12 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.householdrag.api.Expense
 import com.example.householdrag.model.Income
-import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import com.example.householdrag.ui.theme.formatAmount
 
 @Composable
@@ -204,64 +202,64 @@ fun ExpenseItemCard(
 }
 
 
-@Preview(showBackground = true, name = "가계부 카드 미리보기")
-@Composable
-fun ExpenseItemCardPreview() {
-    HouseholdRAGTheme {
-        // 실제 데이터 대신 임시 데이터를 만들어서 넣어줍니다.
-        val demoExpense = Expense(
-            id = "1",
-            place = "배달의 민족",
-            amount = 18000,
-            date = "2026-04-30",
-            memo = "점심 햄버거 세트",
-            category = "식비",
-            payment_method = "카카오페이",
-            time = "12:00",
-            is_fixed_expense = false
-        )
-        val demoExpense2 = Expense(
-            id = "2",
-            place = "배달의 민족 떡볶이 앤 튀김 앤 순대 세트 대형 주문",
-            amount = 18000,
-            date = "2026-04-30",
-            memo = "친구들이랑 홈파티 하려고 진짜 엄청 많이 주문함! 진짜 역대급으로 많이 먹은 날이고 너무너무 행복했음 대박 만족 식사!",
-            category = "식비",
-            payment_method = "카카오페이",
-            time = "12:00",
-            is_fixed_expense = false
-        )
-        val demoIncome = Income(
-            id = "3",
-            category = "월급",
-            amount = 2500000,
-            date = "2026-04-25",
-            memo = "기분 좋은 날",
-            deposit_method = "계좌이체",
-            deposit_source = "주식회사 테스트",
-            time = "10:00",
-            is_fixed_income = false
-        )
-
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("1. 지출 예시 피드", fontWeight = FontWeight.Bold)
-            ExpenseItemCard(
-                item = demoExpense2,
-                isExpanded = true,
-                onCardClick = {},
-                onEditClick = {},
-                onDeleteClick = {}
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text("2. 수입 예시 피드 (혜림 님 통합 버전 폼)", fontWeight = FontWeight.Bold)
-            ExpenseItemCard(
-                item = demoIncome,
-                isExpanded = true,
-                onCardClick = {},
-                onEditClick = {},
-                onDeleteClick = {}
-            )
-        }
-    }
-}
+//@Preview(showBackground = true, name = "가계부 카드 미리보기")
+//@Composable
+//fun ExpenseItemCardPreview() {
+//    HouseholdRAGTheme {
+//        // 실제 데이터 대신 임시 데이터를 만들어서 넣어줍니다.
+//        val demoExpense = Expense(
+//            id = "1",
+//            place = "배달의 민족",
+//            amount = 18000,
+//            date = "2026-04-30",
+//            memo = "점심 햄버거 세트",
+//            category = "식비",
+//            payment_method = "카카오페이",
+//            time = "12:00",
+//            is_fixed_expense = false
+//        )
+//        val demoExpense2 = Expense(
+//            id = "2",
+//            place = "배달의 민족 떡볶이 앤 튀김 앤 순대 세트 대형 주문",
+//            amount = 18000,
+//            date = "2026-04-30",
+//            memo = "친구들이랑 홈파티 하려고 진짜 엄청 많이 주문함! 진짜 역대급으로 많이 먹은 날이고 너무너무 행복했음 대박 만족 식사!",
+//            category = "식비",
+//            payment_method = "카카오페이",
+//            time = "12:00",
+//            is_fixed_expense = false
+//        )
+//        val demoIncome = Income(
+//            id = "3",
+//            category = "월급",
+//            amount = 2500000,
+//            date = "2026-04-25",
+//            memo = "기분 좋은 날",
+//            deposit_method = "계좌이체",
+//            deposit_source = "주식회사 테스트",
+//            time = "10:00",
+//            is_fixed_income = false
+//        )
+//
+//        Column(modifier = Modifier.padding(16.dp)) {
+//            Text("1. 지출 예시 피드", fontWeight = FontWeight.Bold)
+//            ExpenseItemCard(
+//                item = demoExpense2,
+//                isExpanded = true,
+//                onCardClick = {},
+//                onEditClick = {},
+//                onDeleteClick = {}
+//            )
+//            Spacer(modifier = Modifier.height(16.dp))
+//
+//            Text("2. 수입 예시 피드 (혜림 님 통합 버전 폼)", fontWeight = FontWeight.Bold)
+//            ExpenseItemCard(
+//                item = demoIncome,
+//                isExpanded = true,
+//                onCardClick = {},
+//                onEditClick = {},
+//                onDeleteClick = {}
+//            )
+//        }
+//    }
+//}
