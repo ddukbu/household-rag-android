@@ -9,5 +9,6 @@ data class ExpenseIn(
     val amount: Int,
     val payment_method: String,
     val place: String,
-    val memo: String
+    val memo: String,
+    val fixed_item_id: String = ""
 )

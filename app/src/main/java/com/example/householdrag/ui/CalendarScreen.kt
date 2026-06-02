@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,9 +18,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,9 +47,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.householdrag.api.Expense
+import com.example.householdrag.model.AssetHistoryItem
+import com.example.householdrag.model.BudgetOut
 import com.example.householdrag.model.Income
 import com.example.householdrag.ui.theme.LemonMain
 import com.example.householdrag.ui.theme.MonthSelector
+import com.example.householdrag.ui.theme.formatAmount
 import com.kizitonwose.calendar.compose.HorizontalCalendar
 import com.kizitonwose.calendar.compose.rememberCalendarState
 import com.kizitonwose.calendar.core.CalendarDay
@@ -51,10 +63,19 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 @Composable
-fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
+fun CalendarScreen(
+    transactions: List<Any>,
+    assetHistory: List<AssetHistoryItem>,
+    budgets: List<BudgetOut>,
+    currentAsset: Int?,
+    onAddClick: (date: LocalDate, category: String?) -> Unit,
+    onListClick: () -> Unit
+) {
     // 날짜 상태 관리
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var currentYearMonth by remember { mutableStateOf(YearMonth.now()) }
+    var selectedAssetYear by remember { mutableStateOf(YearMonth.now().year) }
+    var calendarMode by remember { mutableStateOf("일별") }
 
     // 카테고리
     var selectedCategoryFilter by remember { mutableStateOf("전체") }
@@ -184,6 +205,55 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
             }
         }
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFF3F3F3))
+                    .padding(3.dp)
+            ) {
+                CalendarModeChip(
+                    text = "월별",
+                    selected = calendarMode == "월별",
+                    onClick = { calendarMode = "월별" }
+                )
+                CalendarModeChip(
+                    text = "일별",
+                    selected = calendarMode == "일별",
+                    onClick = { calendarMode = "일별" }
+                )
+            }
+
+            FilledTonalButton(
+                onClick = onListClick,
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.List,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("목록")
+            }
+        }
+
+        if (calendarMode == "월별") {
+            MonthlyAssetHistorySection(
+                assetHistory = assetHistory,
+                budgets = budgets,
+                currentAsset = currentAsset,
+                selectedYear = selectedAssetYear,
+                onYearChange = { selectedAssetYear = it }
+            )
+            return@Column
+        }
 
         // [중앙] 요일 표시 (일~토)
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -249,14 +319,36 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
 
-                    // 현재 필터링 모드 안내 뱃지 문구
-                    if (selectedCategoryFilter != "전체") {
-                        Text(
-                            text = "[$selectedCategoryFilter] 보기 중",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (selectedCategoryFilter != "전체") {
+                            Text(
+                                text = "[$selectedCategoryFilter]",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        FilledTonalButton(
+                            onClick = {
+                                onAddClick(
+                                    selectedDate,
+                                    selectedCategoryFilter.takeIf { it != "전체" }
+                                )
+                            },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("추가")
+                        }
                     }
                 }
             }
@@ -289,6 +381,210 @@ fun CalendarScreen(transactions: List<Any>, onListClick: () -> Unit) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun CalendarModeChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) LemonMain else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) Color.Black else Color.Gray
+        )
+    }
+}
+
+@Composable
+fun MonthlyAssetHistorySection(
+    assetHistory: List<AssetHistoryItem>,
+    budgets: List<BudgetOut>,
+    currentAsset: Int?,
+    selectedYear: Int,
+    onYearChange: (Int) -> Unit
+) {
+    val historyByMonth = remember(assetHistory, selectedYear) {
+        assetHistory
+            .filter { it.year_month.startsWith("$selectedYear-") }
+            .associateBy {
+                it.year_month.substringAfter("-").toIntOrNull() ?: 0
+            }
+    }
+    val budgetByMonth = remember(budgets, selectedYear) {
+        budgets
+            .filter { it.year_month.startsWith("$selectedYear-") }
+            .associateBy {
+                it.year_month.substringAfter("-").toIntOrNull() ?: 0
+            }
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            CurrentAssetHeader(currentAsset = currentAsset)
+        }
+
+        item {
+            YearSelector(
+                year = selectedYear,
+                onPreviousYear = { onYearChange(selectedYear - 1) },
+                onNextYear = { onYearChange(selectedYear + 1) }
+            )
+        }
+
+        items((1..12).chunked(4)) { monthRow ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                monthRow.forEach { month ->
+                    MonthlyAssetMonthCell(
+                        month = month,
+                        item = historyByMonth[month],
+                        budget = budgetByMonth[month],
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CurrentAssetHeader(currentAsset: Int?) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFE8F0F7))
+            .padding(vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "현재 자산",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "${formatAmount(currentAsset ?: 0)}원",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.DarkGray,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun YearSelector(
+    year: Int,
+    onPreviousYear: () -> Unit,
+    onNextYear: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "${year}년",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Row {
+            IconButton(onClick = onPreviousYear) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = "이전 연도"
+                )
+            }
+            IconButton(onClick = onNextYear) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "다음 연도"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MonthlyAssetMonthCell(
+    month: Int,
+    item: AssetHistoryItem?,
+    budget: BudgetOut?,
+    modifier: Modifier = Modifier
+) {
+    val hasRecord = item != null
+    val stateLabel = when (budget?.state) {
+        "good" -> "좋음"
+        "warning" -> "경고"
+        "bad" -> "나쁨"
+        else -> null
+    }
+    val stateColor = when (budget?.state) {
+        "good" -> Color(0xFF2E7D32)
+        "warning" -> Color(0xFFF9A825)
+        "bad" -> Color(0xFFE53935)
+        else -> Color.Gray
+    }
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (hasRecord || stateLabel != null) Color(0xFFEAF4FF) else Color.Transparent)
+            .padding(vertical = 14.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = month.toString(),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = if (hasRecord) FontWeight.Bold else FontWeight.Normal,
+            color = if (hasRecord) Color.Black else Color.DarkGray
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        if (item == null) {
+            Text(
+                text = "기록 없음",
+                fontSize = 10.sp,
+                color = Color.LightGray,
+                textAlign = TextAlign.Center
+            )
+        } else {
+            Text(
+                text = formatAmount(item.asset),
+                fontSize = 10.sp,
+                color = Color.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+        if (stateLabel != null) {
+            Text(
+                text = stateLabel,
+                fontSize = 10.sp,
+                color = stateColor,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

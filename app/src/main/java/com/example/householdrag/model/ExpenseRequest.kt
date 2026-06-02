@@ -11,5 +11,6 @@ data class ExpenseRequest(
     // Backwards-compatible additions required by server's ExpenseIn.
     // Placed at the end with defaults so existing positional call sites keep working.
     val time: String = "",
-    val is_fixed_expense: Boolean = false
+    val is_fixed_expense: Boolean = false,
+    val fixed_item_id: String = ""
 )

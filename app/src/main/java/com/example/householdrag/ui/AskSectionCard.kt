@@ -202,21 +202,22 @@ fun AskSectionCard(
                     singleLine = true
                 )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                if (chatMode == ChatMode.GENERAL) {
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                // 혜림 님이 원하신 '>' 모양의 전송 아이콘
-                IconButton(
-                    onClick = onAskClick,
-                    enabled = actionsEnabled,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(LemonDeep, CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "전송",
-                        tint = Color.Black
-                    )
+                    IconButton(
+                        onClick = onAskClick,
+                        enabled = actionsEnabled,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(LemonDeep, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "전송",
+                            tint = Color.Black
+                        )
+                    }
                 }
             }
         }
