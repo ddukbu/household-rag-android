@@ -20,8 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
@@ -66,17 +66,19 @@ import com.example.householdrag.api.FixedExpenseItem
 import com.example.householdrag.api.FixedIncomeItem
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
-import com.example.householdrag.model.AssetOut
-import com.example.householdrag.model.AssetHistoryItem
 import com.example.householdrag.model.AskRequest
-import com.example.householdrag.model.ChatHistoryDto
-import com.example.householdrag.model.BudgetDraftRequest
+import com.example.householdrag.model.AssetHistoryItem
+import com.example.householdrag.model.AssetOut
+import com.example.householdrag.model.BudgetDetailsUpdateRequest
 import com.example.householdrag.model.BudgetDraftOut
+import com.example.householdrag.model.BudgetDraftRequest
 import com.example.householdrag.model.BudgetOut
+import com.example.householdrag.model.ChatHistoryDto
 import com.example.householdrag.model.FixedExpenseBudget
 import com.example.householdrag.model.FixedIncomeBudget
 import com.example.householdrag.model.Income
 import com.example.householdrag.model.InitialAssetRequest
+import com.example.householdrag.model.SavingUpdateRequest
 import com.example.householdrag.ui.theme.HouseholdRAGTheme
 import kotlinx.coroutines.launch
 
@@ -108,7 +110,7 @@ fun HouseholdApp() {
     val context = LocalContext.current
 
     var isAuthenticated by remember { mutableStateOf(false) }
-    var currentScreen by remember { mutableStateOf(Screen.CALENDAR) } // 기본은 LOGIN 테스트 시 변경
+    var currentScreen by remember { mutableStateOf(Screen.LOGIN) } // 기본은 LOGIN 테스트 시 변경
     var isLoading by remember { mutableStateOf(false) }
     var isChatLoading by remember { mutableStateOf(false) }
 
@@ -135,7 +137,10 @@ fun HouseholdApp() {
     var memo by remember { mutableStateOf("") }
     var inputStartsAsExpense by remember { mutableStateOf(true) }
     var inputFormSession by remember { mutableStateOf(0) }
+    var addReturnCalendarDate by remember { mutableStateOf<String?>(null) }
     var expandedItemId by remember { mutableStateOf<String?>(null) }
+
+    var mainFixedItemId by remember { mutableStateOf("") }
 
     var currentQuestion by remember { mutableStateOf("") }
     var chatMode by remember { mutableStateOf(ChatMode.GENERAL) }
@@ -160,18 +165,21 @@ fun HouseholdApp() {
         editId = null; date = ""; category = ""; amount = ""; paymentMethod = ""; place = ""; memo =
             ""
         inputStartsAsExpense = true
+        addReturnCalendarDate = null
         inputFormSession += 1
     }
 
     fun openAddScreen(
         initialDate: String = "",
-        initialCategory: String? = null
+        initialCategory: String? = null,
+        returnToCalendar: Boolean = false
     ) {
         val incomeCategories = setOf("월급", "연금", "부수입", "용돈", "상여")
         clearForm()
         date = initialDate
         category = initialCategory.orEmpty()
         inputStartsAsExpense = initialCategory !in incomeCategories
+        addReturnCalendarDate = initialDate.takeIf { returnToCalendar && it.isNotBlank() }
         currentScreen = Screen.ADD
     }
 
@@ -302,14 +310,10 @@ fun HouseholdApp() {
     }
 
     fun analyzeGeneralSpending() {
-        val submittedQuestion = currentQuestion.trim()
         scope.launch {
             isChatLoading = true
             try {
-                val requestText = submittedQuestion.ifBlank {
-                    "최근 카테고리별 소비 패턴을 분석해줘."
-                }
-                ApiClient.api.analyzeSpending(AskRequest(requestText))
+                ApiClient.api.analyzeSpending(AskRequest(""))
                 currentQuestion = ""
                 refreshChatHistory()
             } catch (e: Exception) {
@@ -484,7 +488,7 @@ fun HouseholdApp() {
                         NavigationBarItem(
                             selected = currentScreen == Screen.ASK,
                             onClick = { currentScreen = Screen.ASK },
-                            label = { Text("분석") },
+                            label = { Text("채팅") },
                             icon = { Icon(Icons.Default.Search, contentDescription = null) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -611,21 +615,34 @@ fun HouseholdApp() {
                                     item = transactionItem,
                                     isExpanded = expandedItemId == itemId,
                                     onCardClick = {
-                                        expandedItemId = if (expandedItemId == itemId) null else itemId
+                                        expandedItemId =
+                                            if (expandedItemId == itemId) null else itemId
                                     },
                                     onEditClick = {
                                         // 수정 처리 로직 (기존 기믹 분기 매핑)
                                         if (transactionItem is Expense) {
-                                            editId = transactionItem.id; date = transactionItem.date; category = transactionItem.category
-                                            amount = transactionItem.amount.toString(); paymentMethod = transactionItem.payment_method
-                                            place = transactionItem.place; memo = transactionItem.memo
+                                            editId = transactionItem.id;
+                                            date = transactionItem.date;
+                                            category = transactionItem.category
+                                            amount = transactionItem.amount.toString();
+                                            paymentMethod = transactionItem.payment_method
+                                            place = transactionItem.place;
+                                            memo = transactionItem.memo
+                                            mainFixedItemId =
+                                                transactionItem.fixed_item_id.orEmpty()
                                             inputStartsAsExpense = true
                                             inputFormSession += 1
                                             currentScreen = Screen.ADD
                                         } else if (transactionItem is Income) {
-                                            editId = transactionItem.id; date = transactionItem.date; category = transactionItem.category
-                                            amount = transactionItem.amount.toString(); memo = transactionItem.memo ?: ""
-                                            place = transactionItem.deposit_source ?: "" // 수입은 입금처를 임시 보관
+                                            editId = transactionItem.id;
+                                            date = transactionItem.date;
+                                            category = transactionItem.category
+                                            amount = transactionItem.amount.toString();
+                                            memo = transactionItem.memo ?: ""
+                                            place = transactionItem.deposit_source
+                                                ?: "" // 수입은 입금처를 임시 보관
+                                            mainFixedItemId =
+                                                transactionItem.fixed_item_id.orEmpty()
                                             paymentMethod = transactionItem.deposit_method
                                             inputStartsAsExpense = false
                                             inputFormSession += 1
@@ -670,19 +687,22 @@ fun HouseholdApp() {
                             onResetClick = { clearForm(); currentScreen = Screen.LIST },
 
                             // 추가된 부분
-                            fixedIncomeList = fixedIncomeList,
-                            fixedExpenseList = fixedExpenseList,
+                            fixedIncomeList = fixedIncomeList.filter { !it.is_recorded },
+                            fixedExpenseList = fixedExpenseList.filter { !it.is_recorded },
 
-                            onFixedItemSelect = { selectedCategory, selectedAmount, selectedMemo ->
+                            onFixedItemSelect = { selectedCategory, selectedAmount, selectedMemo, selectedFixedItemId ->
                                 category = selectedCategory
                                 amount = selectedAmount
                                 memo = selectedMemo
+                                mainFixedItemId = selectedFixedItemId
                             },
 
                             // 지출 저장 로직
                             onSaveExpense = { expenseReq ->
                                 scope.launch {
                                     try {
+                                        val finalRequest = expenseReq.copy(fixed_item_id = mainFixedItemId)
+
                                         if (editId == null) {
                                             ApiClient.api.createExpense(expenseReq) // 신규 지출
                                         } else {
@@ -693,12 +713,15 @@ fun HouseholdApp() {
                                                 )
                                             }
                                         }
+                                        val returnCalendarDate = addReturnCalendarDate
                                         clearForm()
+                                        addReturnCalendarDate = returnCalendarDate
                                         refreshExpenses()
                                         refreshAssets()
                                         refreshAssetHistory()
                                         refreshBudgets()
-                                        currentScreen = Screen.LIST
+                                        currentScreen =
+                                            if (returnCalendarDate != null) Screen.CALENDAR else Screen.LIST
                                     } catch (e: Exception) {
                                         statusMessage = "지출 저장 실패"
                                     }
@@ -709,6 +732,8 @@ fun HouseholdApp() {
                             onSaveIncome = { incomeReq ->
                                 scope.launch {
                                     try {
+                                        val finalRequest = incomeReq.copy(fixed_item_id = mainFixedItemId)
+
                                         if (editId == null) {
                                             ApiClient.api.createIncome(incomeReq)
                                         } else {
@@ -719,12 +744,15 @@ fun HouseholdApp() {
                                                 )
                                             }
                                         }
+                                        val returnCalendarDate = addReturnCalendarDate
                                         clearForm()
+                                        addReturnCalendarDate = returnCalendarDate
                                         refreshExpenses()
                                         refreshAssets()
                                         refreshAssetHistory()
                                         refreshBudgets()
-                                        currentScreen = Screen.LIST
+                                        currentScreen =
+                                            if (returnCalendarDate != null) Screen.CALENDAR else Screen.LIST
                                     } catch (e: Exception) {
                                         statusMessage = "수입 저장 실패"
                                     }
@@ -938,7 +966,61 @@ fun HouseholdApp() {
 
                             onMonthChange = { newYM ->
                                 currentYearMonth = newYM // 화살표 클릭 시 상태 업데이트
+                            },
+
+                            onUpdateCategoryBudget = { targetCategory, newLimitAmount ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+
+                                        val currentDetails =
+                                            budgetData?.budget_details?.toMutableMap()
+                                                ?: mutableMapOf()
+                                        currentDetails[targetCategory] = newLimitAmount
+
+                                        val requestBody = BudgetDetailsUpdateRequest(
+                                            budget_details = currentDetails
+                                        )
+
+                                        ApiClient.api.updateBudgetDetails(
+                                            yearMonth = currentYearMonth,
+                                            request = requestBody
+                                        )
+
+                                        refreshBudget(currentYearMonth)
+
+                                    } catch (e: Exception) {
+                                        Log.e("BUDGET_LIMIT_UPDATE", "한도 수정 실패: ${e.message}")
+                                        statusMessage = "한도 수정에 실패했습니다."
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            },
+
+                            onUpdateSaving = { newSavingAmount ->
+                                scope.launch {
+                                    try {
+                                        isLoading = true
+
+                                        val requestBody =
+                                            SavingUpdateRequest(saving = newSavingAmount)
+
+                                        ApiClient.api.updateSaving(
+                                            yearMonth = currentYearMonth,
+                                            request = requestBody
+                                        )
+
+                                        refreshBudget(currentYearMonth)
+                                    } catch (e: Exception) {
+                                        Log.e("BUDGET_SAVING_UPDATE", "목표 저축액 수정 실패: ${e.message}")
+                                        statusMessage = "저축액 목표 수정에 실패했습니다."
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
                             }
+
                         )
                     }
                 }
@@ -947,11 +1029,12 @@ fun HouseholdApp() {
                     transactions = combinedTransactions,
                     assetHistory = assetHistory,
                     budgets = budgets,
-                    currentAsset = assetData?.current_asset,
+                    initialSelectedDate = addReturnCalendarDate,
                     onAddClick = { selectedDate, selectedCategory ->
                         openAddScreen(
                             initialDate = selectedDate.toString(),
-                            initialCategory = selectedCategory
+                            initialCategory = selectedCategory,
+                            returnToCalendar = true
                         )
                     },
                     onListClick = { currentScreen = Screen.LIST })

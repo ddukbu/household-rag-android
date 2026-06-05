@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.householdrag.api.ExpenseIn
 import com.example.householdrag.api.FixedExpenseItem
 import com.example.householdrag.api.FixedIncomeItem
@@ -70,7 +72,7 @@ fun ExpenseInputCard(
 
     fixedIncomeList: List<FixedIncomeItem>,
     fixedExpenseList: List<FixedExpenseItem>,
-    onFixedItemSelect: (category: String, amount: String, memo: String) -> Unit,
+    onFixedItemSelect: (category: String, amount: String, memo: String, fixedItemId: String) -> Unit,
 
     //onSaveClick: () -> Unit,
     onResetClick: () -> Unit,
@@ -82,9 +84,15 @@ fun ExpenseInputCard(
     var isExpenseMode by remember { mutableStateOf(true) } // 지출/수입 모드 전환
     var isFixed by remember { mutableStateOf(false) }     // 고정/변동 스위치
 
+    var currentFixedItemId by remember { mutableStateOf("") }
+
     // 드롭다운의 펼침 상태를 관리하는 변수들
     var categoryExpanded by remember { mutableStateOf(false) }
     var paymentExpanded by remember { mutableStateOf(false) }
+
+    // [is_recorded == false]인 목록만
+    val filteredExpenseList = fixedExpenseList.filter { !it.is_recorded }
+    val filteredIncomeList = fixedIncomeList.filter { !it.is_recorded }
 
     val isFixedListAvailable =
         if (isExpenseMode) fixedExpenseList.isNotEmpty() else fixedIncomeList.isNotEmpty()
@@ -131,6 +139,14 @@ fun ExpenseInputCard(
     var selectedTime by remember { mutableStateOf("12:00") }
     val interactionSourceTime = remember { MutableInteractionSource() }
     val isTimePressed by interactionSourceTime.collectIsPressedAsState()
+
+    val isAmountValid = (amount.toIntOrNull() ?: 0) > 0
+    val isInputComplete = date.isNotBlank() &&
+            selectedTime.isNotBlank() &&
+            category.isNotBlank() &&
+            place.isNotBlank() &&
+            paymentMethod.isNotBlank() &&
+            isAmountValid
 
     // 달력 다이얼로그를 띄우는 함수
     val datePickerDialog = DatePickerDialog(
@@ -190,6 +206,8 @@ fun ExpenseInputCard(
                             onClick = {
                                 if (!isExpenseMode) {
                                     isExpenseMode = true
+                                    isFixed = false
+                                    currentFixedItemId = "" // 모드 전환 시 ID 초기화
                                     resetEntryFieldsForTypeChange()
                                 }
                             }
@@ -200,6 +218,8 @@ fun ExpenseInputCard(
                             onClick = {
                                 if (isExpenseMode) {
                                     isExpenseMode = false
+                                    isFixed = false
+                                    currentFixedItemId = ""
                                     resetEntryFieldsForTypeChange()
                                 }
                             }
@@ -218,7 +238,14 @@ fun ExpenseInputCard(
             ) {
                 androidx.compose.material3.Checkbox(
                     checked = isFixed,
-                    onCheckedChange = { isFixed = it })
+                    onCheckedChange = {
+                        if (it) {
+                            isFixed = true
+                        } else {
+                            currentFixedItemId = ""
+                            resetEntryFieldsForTypeChange()
+                        }
+                    })
                 Text(
                     text = if (isExpenseMode) "고정 지출 내역에서 가져오기" else "고정 수입 내역에서 가져오기",
                     style = MaterialTheme.typography.bodySmall,
@@ -238,7 +265,7 @@ fun ExpenseInputCard(
                     CommonTextField(
                         value = date,
                         onValueChange = {},
-                        label = "날짜 선택",
+                        label = "날짜 선택 *",
                         readOnly = true,
                         // 아이콘만 깔끔하게 표시
                         trailingIcon = {
@@ -248,6 +275,7 @@ fun ExpenseInputCard(
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
+
                 // 시간
                 Box(
                     modifier = Modifier
@@ -256,70 +284,36 @@ fun ExpenseInputCard(
                     CommonTextField(
                         value = selectedTime,
                         onValueChange = {},
-                        label = "시간",
+                        label = "시간 *",
                         readOnly = true,
                         interactionSource = interactionSourceTime
                     )
                 }
             }
 
-//            // 카테고리 드롭다운 (스피너 역할)
-//            ExposedDropdownMenuBox(
-//                expanded = categoryExpanded,
-//                onExpandedChange = { categoryExpanded = !categoryExpanded },
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .padding(vertical = 4.dp)
-//            ) {
-//                OutlinedTextField(
-//                    value = category,
-//                    onValueChange = {},
-//                    readOnly = true, // 직접 타이핑 방지
-//                    label = { Text("카테고리") },
-//                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-//                    modifier = Modifier
-//                        .menuAnchor()
-//                        .fillMaxWidth(),
-//                    colors = OutlinedTextFieldDefaults.colors(
-//                        focusedBorderColor = Color.Black,
-//                        unfocusedBorderColor = Color.Gray,
-//                        focusedLabelColor = Color.Black
-//                    )
-//                )
-//                ExposedDropdownMenu(
-//                    expanded = categoryExpanded,
-//                    onDismissRequest = { categoryExpanded = false },
-//                    modifier = Modifier.background(Color.White)
-//                ) {
-//                    categoryOptions.forEach { option ->
-//                        DropdownMenuItem(
-//                            text = { Text(option) },
-//                            onClick = {
-//                                onCategoryChange(option)
-//                                categoryExpanded = false
-//                            }
-//                        )
-//                    }
-//                }
-//            }
-
+            // 카테고리 / 고정항목 선택 드롭다운
             ExposedDropdownMenuBox(
                 expanded = categoryExpanded,
                 onExpandedChange = { categoryExpanded = !categoryExpanded },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
             ) {
                 OutlinedTextField(
                     value = category,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text(if (isFixed) "등록된 고정 항목 선택" else "카테고리") },
+                    label = { Text(if (isFixed) "등록된 고정 항목 선택 *" else "카테고리 *") },
                     placeholder = { Text(if (isFixed && !isFixedListAvailable) "예산 탭에 등록된 고정 내역이 없어요" else "선택해주세요") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color.Black,
                         unfocusedBorderColor = Color.Gray,
-                        focusedLabelColor = Color.Black
+                        focusedLabelColor = Color.Black,
+                        disabledTextColor = if (isFixed) Color.DarkGray else Color.Black
                     )
                 )
                 ExposedDropdownMenu(
@@ -332,9 +326,20 @@ fun ExpenseInputCard(
                         if (isExpenseMode) {
                             fixedExpenseList.forEach { item ->
                                 DropdownMenuItem(
-                                    text = { Text("${item.category} (${formatAmount(item.amount)}원) · ${item.memo.ifBlank { "메모없음" }}", fontWeight = FontWeight.Medium) },
+                                    text = {
+                                        Text(
+                                            "${item.category} (${formatAmount(item.amount)}원) · ${item.memo.ifBlank { "메모없음" }}",
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    },
                                     onClick = {
-                                        onFixedItemSelect(item.category, item.amount.toString(), item.memo)
+                                        currentFixedItemId = item.id
+                                        onFixedItemSelect(
+                                            item.category,
+                                            item.amount.toString(),
+                                            item.memo,
+                                            item.id
+                                        )
                                         categoryExpanded = false
                                     }
                                 )
@@ -342,9 +347,20 @@ fun ExpenseInputCard(
                         } else {
                             fixedIncomeList.forEach { item ->
                                 DropdownMenuItem(
-                                    text = { Text("${item.category} (${formatAmount(item.amount)}원) · ${item.memo.ifBlank { "메모없음" }}", fontWeight = FontWeight.Medium) },
+                                    text = {
+                                        Text(
+                                            "${item.category} (${formatAmount(item.amount)}원) · ${item.memo.ifBlank { "메모없음" }}",
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    },
                                     onClick = {
-                                        onFixedItemSelect(item.category, item.amount.toString(), item.memo)
+                                        currentFixedItemId = item.id
+                                        onFixedItemSelect(
+                                            item.category,
+                                            item.amount.toString(),
+                                            item.memo,
+                                            item.id
+                                        )
                                         categoryExpanded = false
                                     }
                                 )
@@ -361,6 +377,7 @@ fun ExpenseInputCard(
                             DropdownMenuItem(
                                 text = { Text(option) },
                                 onClick = {
+                                    currentFixedItemId = ""
                                     onCategoryChange(option)
                                     categoryExpanded = false
                                 }
@@ -373,8 +390,9 @@ fun ExpenseInputCard(
             // 금액 입력
             OutlinedTextField(
                 value = amount,
-                onValueChange = onAmountChange,
-                label = { Text("금액") },
+                onValueChange = { if (!isFixed) onAmountChange(it) },
+                label = { Text("금액 *") },
+                readOnly = isFixed,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
@@ -382,7 +400,8 @@ fun ExpenseInputCard(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.Black,
                     unfocusedBorderColor = Color.Gray,
-                    focusedLabelColor = Color.Black
+                    focusedLabelColor = Color.Black,
+                    disabledTextColor = if (isFixed) Color.DarkGray else Color.Black
                 )
             )
 
@@ -398,7 +417,7 @@ fun ExpenseInputCard(
                     value = paymentMethod,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text(methodLabel) },
+                    label = { Text("$methodLabel *") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paymentExpanded) },
                     modifier = Modifier
                         .menuAnchor()
@@ -424,53 +443,86 @@ fun ExpenseInputCard(
             }
 
             // 사용처 및 메모 입력
-            CommonTextField(value = place, onValueChange = onPlaceChange, label = placeLabel)
-            CommonTextField(value = memo, onValueChange = onMemoChange, label = "메모")
+            CommonTextField(value = place, onValueChange = onPlaceChange, label = "$placeLabel *")
+            CommonTextField(
+                value = memo,
+                onValueChange = { if (!isFixed) onMemoChange(it) },
+                label = "메모",
+                readOnly = isFixed
+            )
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onResetClick) {
-                    Text("초기화", color = Color.Gray)
-                }
+                Text(
+                    text = "* 필수 항목 입력 필요",
+                    fontSize = 11.sp,
+                    color = if (isInputComplete) Color.LightGray else Color(0xFFE53935),
+                    fontWeight = FontWeight.Medium
+                )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Row {
+                    TextButton(onClick = {
+                        currentFixedItemId = ""
+                        isFixed = false
+                        onResetClick()
+                    }) {
+                        Text("초기화", color = Color.Gray)
+                    }
 
-                Button(
-                    onClick = {
-                        val amountInt = amount.toIntOrNull() ?: 0
-                        if (isExpenseMode) {
-                            val expenseData = ExpenseIn(
-                                date = date,
-                                time = selectedTime,
-                                category = category,
-                                amount = amountInt,
-                                payment_method = paymentMethod,
-                                place = place,
-                                memo = memo,
-                                is_fixed_expense = isFixed
-                            )
-                            onSaveExpense(expenseData)
-                        } else {
-                            val incomeData = IncomeIn(
-                                date = date,
-                                time = selectedTime,
-                                is_fixed_income = isFixed,
-                                category = category,
-                                amount = amountInt,
-                                deposit_method = paymentMethod,
-                                deposit_source = place,
-                                memo = memo
-                            )
-                            onSaveIncome(incomeData)
-                        }
-                    },
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(if (editId == null) "저장" else "수정")
+                    Spacer(modifier = Modifier.width(8.dp))
+
+
+
+
+                    Button(
+                        enabled = isInputComplete,
+                        onClick = {
+                            val amountInt = amount.toIntOrNull() ?: 0
+                            if (isExpenseMode) {
+                                val expenseData = ExpenseIn(
+                                    date = date,
+                                    time = selectedTime,
+                                    category = category,
+                                    amount = amountInt,
+                                    payment_method = paymentMethod,
+                                    place = place,
+                                    memo = memo,
+                                    is_fixed_expense = isFixed,
+                                    fixed_item_id = currentFixedItemId
+                                )
+                                onSaveExpense(expenseData)
+                            } else {
+                                val incomeData = IncomeIn(
+                                    date = date,
+                                    time = selectedTime,
+                                    is_fixed_income = isFixed,
+                                    category = category,
+                                    amount = amountInt,
+                                    deposit_method = paymentMethod,
+                                    deposit_source = place,
+                                    memo = memo,
+                                    fixed_item_id = currentFixedItemId
+                                )
+                                onSaveIncome(incomeData)
+                            }
+                            currentFixedItemId = ""
+                            isFixed = false
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.Black,
+                            disabledContainerColor = Color(0xFFE0E0E0),
+                            disabledContentColor = Color.Gray
+                        )
+                    ) {
+                        Text(if (editId == null) "저장" else "수정", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

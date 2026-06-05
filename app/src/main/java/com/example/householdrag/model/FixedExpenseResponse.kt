@@ -14,5 +14,5 @@ data class FixedExpenseItem(
     val category: String,
     val amount: Int,
     val memo: String = "",
-    val is_recorded: Boolean = false
+    val is_recorded: Boolean
 )

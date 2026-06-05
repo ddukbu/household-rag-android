@@ -67,15 +67,20 @@ fun CalendarScreen(
     transactions: List<Any>,
     assetHistory: List<AssetHistoryItem>,
     budgets: List<BudgetOut>,
-    currentAsset: Int?,
+    initialSelectedDate: String? = null,
     onAddClick: (date: LocalDate, category: String?) -> Unit,
     onListClick: () -> Unit
 ) {
     // 날짜 상태 관리
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var currentYearMonth by remember { mutableStateOf(YearMonth.now()) }
+    val restoredDate = remember(initialSelectedDate) {
+        initialSelectedDate?.let {
+            runCatching { LocalDate.parse(it) }.getOrNull()
+        } ?: LocalDate.now()
+    }
+    var selectedDate by remember { mutableStateOf(restoredDate) }
+    var currentYearMonth by remember { mutableStateOf(YearMonth.from(restoredDate)) }
     var selectedAssetYear by remember { mutableStateOf(YearMonth.now().year) }
-    var calendarMode by remember { mutableStateOf("일별") }
+    var calendarMode by remember { mutableStateOf("day") }
 
     // 카테고리
     var selectedCategoryFilter by remember { mutableStateOf("전체") }
@@ -151,6 +156,7 @@ fun CalendarScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Box(modifier = Modifier.weight(1f)) {
+                if (calendarMode != "month") {
                 MonthSelector(
                     currentYM = currentYearMonth.toString(),
                     onMonthChange = { newYMStr ->
@@ -162,6 +168,7 @@ fun CalendarScreen(
                         }
                     }
                 )
+                }
             }
 
             // 카테고리
@@ -220,13 +227,13 @@ fun CalendarScreen(
             ) {
                 CalendarModeChip(
                     text = "월별",
-                    selected = calendarMode == "월별",
-                    onClick = { calendarMode = "월별" }
+                    selected = calendarMode == "month",
+                    onClick = { calendarMode = "month" }
                 )
                 CalendarModeChip(
                     text = "일별",
-                    selected = calendarMode == "일별",
-                    onClick = { calendarMode = "일별" }
+                    selected = calendarMode == "day",
+                    onClick = { calendarMode = "day" }
                 )
             }
 
@@ -244,13 +251,21 @@ fun CalendarScreen(
             }
         }
 
-        if (calendarMode == "월별") {
+        if (calendarMode == "month") {
             MonthlyAssetHistorySection(
                 assetHistory = assetHistory,
                 budgets = budgets,
-                currentAsset = currentAsset,
                 selectedYear = selectedAssetYear,
-                onYearChange = { selectedAssetYear = it }
+                onYearChange = { selectedAssetYear = it },
+                onMonthClick = { month ->
+                    val targetMonth = YearMonth.of(selectedAssetYear, month)
+                    currentYearMonth = targetMonth
+                    selectedDate = targetMonth.atDay(1)
+                    calendarMode = "day"
+                    scope.launch {
+                        state.animateScrollToMonth(targetMonth)
+                    }
+                }
             )
             return@Column
         }
@@ -313,7 +328,7 @@ fun CalendarScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${selectedDate.dayOfMonth}일 기계부 내역",
+                        text = "${selectedDate.dayOfMonth}일 가계부 내역",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(vertical = 8.dp)
@@ -412,9 +427,9 @@ fun CalendarModeChip(
 fun MonthlyAssetHistorySection(
     assetHistory: List<AssetHistoryItem>,
     budgets: List<BudgetOut>,
-    currentAsset: Int?,
     selectedYear: Int,
-    onYearChange: (Int) -> Unit
+    onYearChange: (Int) -> Unit,
+    onMonthClick: (Int) -> Unit
 ) {
     val historyByMonth = remember(assetHistory, selectedYear) {
         assetHistory
@@ -438,10 +453,6 @@ fun MonthlyAssetHistorySection(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            CurrentAssetHeader(currentAsset = currentAsset)
-        }
-
-        item {
             YearSelector(
                 year = selectedYear,
                 onPreviousYear = { onYearChange(selectedYear - 1) },
@@ -459,6 +470,7 @@ fun MonthlyAssetHistorySection(
                         month = month,
                         item = historyByMonth[month],
                         budget = budgetByMonth[month],
+                        onClick = { onMonthClick(month) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -532,6 +544,7 @@ fun MonthlyAssetMonthCell(
     month: Int,
     item: AssetHistoryItem?,
     budget: BudgetOut?,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val hasRecord = item != null
@@ -552,6 +565,7 @@ fun MonthlyAssetMonthCell(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(if (hasRecord || stateLabel != null) Color(0xFFEAF4FF) else Color.Transparent)
+            .clickable { onClick() }
             .padding(vertical = 14.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
