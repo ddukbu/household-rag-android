@@ -1399,7 +1399,7 @@ fun BudgetScreen(
                 shape = RoundedCornerShape(16.dp),
                 title = {
                     Text(
-                        "🚨 예산안 강제 초기화 경고",
+                        "🚨 예산안 초기화 경고",
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFD32F2F)
                     )
@@ -1431,7 +1431,7 @@ fun BudgetScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "기존 예산안이 전부 날아가도 진행하시겠습니까?",
+                            text = "기존 예산안이 초기화돼도 진행하시겠습니까?",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
