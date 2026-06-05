@@ -20,8 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
@@ -66,14 +66,14 @@ import com.example.householdrag.api.FixedExpenseItem
 import com.example.householdrag.api.FixedIncomeItem
 import com.example.householdrag.auth.AuthRepository
 import com.example.householdrag.auth.AuthTokenStore
-import com.example.householdrag.model.AssetOut
-import com.example.householdrag.model.AssetHistoryItem
 import com.example.householdrag.model.AskRequest
+import com.example.householdrag.model.AssetHistoryItem
+import com.example.householdrag.model.AssetOut
 import com.example.householdrag.model.BudgetDetailsUpdateRequest
-import com.example.householdrag.model.ChatHistoryDto
-import com.example.householdrag.model.BudgetDraftRequest
 import com.example.householdrag.model.BudgetDraftOut
+import com.example.householdrag.model.BudgetDraftRequest
 import com.example.householdrag.model.BudgetOut
+import com.example.householdrag.model.ChatHistoryDto
 import com.example.householdrag.model.FixedExpenseBudget
 import com.example.householdrag.model.FixedIncomeBudget
 import com.example.householdrag.model.Income
@@ -488,7 +488,7 @@ fun HouseholdApp() {
                         NavigationBarItem(
                             selected = currentScreen == Screen.ASK,
                             onClick = { currentScreen = Screen.ASK },
-                            label = { Text("분석") },
+                            label = { Text("채팅") },
                             icon = { Icon(Icons.Default.Search, contentDescription = null) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,

@@ -141,6 +141,12 @@ fun BudgetScreen(
     var pendingUpdateAmount by remember { mutableStateOf(0) }
     var pendingUpdateMemo by remember { mutableStateOf("") }
 
+    var showBudgetResetWarningDialog by remember { mutableStateOf(false) }
+
+    var pendingAddExpenseCategory by remember { mutableStateOf("") }
+    var pendingAddExpenseAmount by remember { mutableStateOf(0) }
+    var pendingAddExpenseMemo by remember { mutableStateOf("") }
+
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -520,11 +526,20 @@ fun BudgetScreen(
 
     // 카테고리 예산 변경
     if (showLimitEditDialog) {
-        val maxSliderValue =
-            if (budgetData.total_budget > 0) budgetData.total_budget.toFloat() else 100000f
+        val otherCategoriesTotalSpent = budgetData.budget_details
+            .filter { it.key != selectedCategoryToEdit } // 현재 수정 중인 카테고리는 제외!
+            .values
+            .sum()
+
+        val realMaxLimit = (budgetData.total_budget - otherCategoriesTotalSpent).coerceAtLeast(0)
+
+        val maxSliderValue = realMaxLimit.toFloat()
+
         var sliderPosition by remember {
             val currentAmt = inputNewLimit.toIntOrNull() ?: 0
-            mutableStateOf(currentAmt.toFloat().coerceIn(0f, maxSliderValue))
+            mutableStateOf(
+                currentAmt.toFloat().coerceIn(0f, if (maxSliderValue > 0f) maxSliderValue else 1f)
+            )
         }
 
         AlertDialog(
@@ -587,8 +602,11 @@ fun BudgetScreen(
                         Text(text = "설정할 목표 금액", fontSize = 12.sp, color = Color.Gray)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${formatAmount(sliderPosition.toInt())}원",
-                            fontSize = 26.sp,
+                            text = if (maxSliderValue <= 0f) "0원" else "${
+                                formatAmount(
+                                    sliderPosition.toInt()
+                                )
+                            }원", fontSize = 26.sp,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -601,17 +619,21 @@ fun BudgetScreen(
                             .padding(horizontal = 0.dp)
                     ) {
                         androidx.compose.material3.Slider(
-                            value = sliderPosition,
+                            value = if (maxSliderValue <= 0f) 0f else sliderPosition,
                             onValueChange = {
-                                val snappedValue =
-                                    (kotlin.math.round(it / 10000f) * 10000).coerceIn(
-                                        0f,
-                                        maxSliderValue
-                                    )
-                                sliderPosition = snappedValue
-                                inputNewLimit = snappedValue.toInt().toString()
+                                if (maxSliderValue > 0f) {
+                                    val snappedValue =
+                                        (kotlin.math.round(it / 10000f) * 10000).coerceIn(
+                                            0f,
+                                            maxSliderValue
+                                        )
+
+                                    sliderPosition = snappedValue
+                                    inputNewLimit = snappedValue.toInt().toString()
+                                }
                             },
-                            valueRange = 0f..maxSliderValue,
+                            valueRange = 0f..(if (maxSliderValue > 0f) maxSliderValue else 1f),
+                            enabled = maxSliderValue > 0f,
                             // steps = if (maxSliderValue >= 10000f) (maxSliderValue.toInt() / 10000) - 1 else 0,
                             colors = androidx.compose.material3.SliderDefaults.colors(
                                 thumbColor = MaterialTheme.colorScheme.primary,
@@ -644,11 +666,17 @@ fun BudgetScreen(
                         val quickIncrements =
                             listOf(10000 to "+1만", 50000 to "+5만", 100000 to "+10만")
                         quickIncrements.forEach { (value, label) ->
+                            val isBtnEnabled =
+                                maxSliderValue > 0f && (sliderPosition + value) <= maxSliderValue
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFF1F3F5))
+                                    .background(
+                                        if (isBtnEnabled) Color(0xFFF1F3F5) else Color(
+                                            0xFFE0E0E0
+                                        ).copy(alpha = 0.5f)
+                                    )
                                     .clickable {
                                         sliderPosition =
                                             (sliderPosition + value).coerceAtMost(maxSliderValue)
@@ -1319,8 +1347,23 @@ fun BudgetScreen(
                             if (inputCategory.isNotBlank() && amt > 0) {
                                 val currentId = editingId
                                 if (currentId == null) {
-                                    onAddFixedExpense(inputCategory, amt, inputMemo)
-                                    inputCategory = ""; inputAmount = ""; inputMemo = ""
+                                    val currentTotalCategoryBudget =
+                                        budgetData.budget_details.values.sum()
+                                    val pureRemainingMoney =
+                                        budgetData.total_budget - currentTotalCategoryBudget
+
+                                    if (amt > pureRemainingMoney) {
+                                        // 임시 주머니에 보관하고 경고창을 띄워 제동을 겁니다!
+                                        pendingAddExpenseCategory = inputCategory
+                                        pendingAddExpenseAmount = amt
+                                        pendingAddExpenseMemo = inputMemo
+                                        showBudgetResetWarningDialog = true
+                                    } else {
+                                        onAddFixedExpense(inputCategory, amt, inputMemo)
+                                        inputCategory = ""; inputAmount = ""; inputMemo = ""
+                                        showExpenseSheet = false
+                                    }
+
                                 } else {
                                     pendingActionId = currentId
                                     pendingActionType = "EXPENSE"
@@ -1347,6 +1390,82 @@ fun BudgetScreen(
                     }
                 }
             }
+        }
+
+        if (showBudgetResetWarningDialog) {
+            AlertDialog(
+                onDismissRequest = { showBudgetResetWarningDialog = false },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                title = {
+                    Text(
+                        "🚨 예산안 강제 초기화 경고",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD32F2F)
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "새로 추가하려는 고정 지출 금액(${formatAmount(pendingAddExpenseAmount)}원)이\n현재 남은 여유 자금보다 더 큽니다.",
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ 이 항목을 추가할 경우,\n기존 카테고리별 목표 예산 전체가\n[0원]으로 강제 초기화됩니다!",
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFC62828),
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "기존 예산안이 전부 날아가도 진행하시겠습니까?",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onAddFixedExpense(
+                                pendingAddExpenseCategory,
+                                pendingAddExpenseAmount,
+                                pendingAddExpenseMemo
+                            )
+
+                            pendingAddExpenseCategory = ""; pendingAddExpenseAmount =
+                            0; pendingAddExpenseMemo = ""
+                            showBudgetResetWarningDialog = false
+                            showExpenseSheet = false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFD32F2F),
+                            contentColor = Color.White
+                        )
+                    ) { Text("네, 초기화하고 추가") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showBudgetResetWarningDialog = false
+                        }
+                    ) { Text("취소", color = Color.Gray, fontWeight = FontWeight.Bold) }
+                }
+            )
         }
     }
 }
