@@ -438,7 +438,27 @@ fun HouseholdApp() {
                         }) {
                             Text("로그아웃", color = MaterialTheme.colorScheme.error)
                         }
-                        IconButton(onClick = { scope.launch { refreshExpenses() } }) {
+                        IconButton(
+                            onClick = {
+                                when (currentScreen) {
+                                    Screen.ASK -> refreshChatHistory()
+                                    Screen.BUDGET -> refreshBudget(currentYearMonth)
+                                    Screen.CALENDAR -> {
+                                        scope.launch { refreshExpenses() }
+                                        refreshAssets()
+                                        refreshAssetHistory()
+                                        refreshBudgets()
+                                    }
+                                    Screen.LIST -> {
+                                        scope.launch { refreshExpenses() }
+                                        refreshAssets()
+                                        refreshBudget(currentYearMonth)
+                                    }
+                                    Screen.ADD -> refreshBudget(currentYearMonth)
+                                    else -> Unit
+                                }
+                            }
+                        ) {
                             Icon(Icons.Default.Refresh, contentDescription = "새로고침")
                         }
                     }
